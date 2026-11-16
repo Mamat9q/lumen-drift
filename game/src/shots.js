@@ -12,6 +12,19 @@ export function stageShot(game, name, seed = 7) {
   game.starfield = new Starfield(game.w, game.h, mulberry32(seed + 1));
   if (name === 'title') {
     game.state = 'title';
+    // A live swarm drifts behind the dim title overlay — the menu reads as
+    // a game in progress, not a static poster.
+    const edgeSpots = [
+      ['dart', 150, 130], ['mote', 1130, 110], ['spitter', 120, 610],
+      ['dart', 1140, 620], ['mote', 1040, 90],
+    ];
+    for (const [kind, x, y] of edgeSpots) {
+      const e = new Enemy(kind, x, y, rng);
+      e.angle = rand(rng, 0, 6.28);
+      game.enemies.push(e);
+    }
+    game.particles.burst(150, 130, '#ff8a3d', 14, 160, 0.7, 3);
+    game.particles.burst(1140, 620, '#c77dff', 12, 150, 0.7, 3);
     return;
   }
   if (name === 'victory') {
@@ -46,51 +59,67 @@ export function stageShot(game, name, seed = 7) {
     game.particles.ring(game.player.x, game.player.y, '#7df9ff', 130);
     return;
   }
-  // action: mid-fight on wave 4, HUD alive, bullets and particles everywhere.
+  // action: boss fight on wave 5 — SHATTERHEART mid-arena with its escort
+  // swarm, radial bullet ring, overdrive active and combo at x8. This is
+  // the game's signature moment, so it is the cover action shot.
   game.state = 'playing';
-  game.wave = 4;
-  game.score = 12450;
-  game.combo = 13;
-  game.comboMult = 4;
+  game.wave = 5;
+  game.score = 21480;
+  game.combo = 23;
+  game.comboMult = 8;
   game.comboTimer = 2.1;
-  game.kills = 58;
-  game.shotsFired = 420;
-  game.shotsHit = 301;
-  game.runTime = 148;
-  game.spawnQueue = 9;
-  game.player.x = 430;
-  game.player.y = 430;
-  game.player.angle = -0.5;
+  game.kills = 96;
+  game.shotsFired = 640;
+  game.shotsHit = 471;
+  game.runTime = 236;
+  game.spawnQueue = 6;
+  game.player.x = 400;
+  game.player.y = 500;
+  game.player.angle = -0.35;
   game.player.hull = 3;
-  game.player.overdrive = 78;
-  game.player.weapon = 'twin';
-  game.gate.integrity = 82;
+  game.player.overdrive = 0;
+  game.player.overdriveActive = 4.2;
+  game.player.weapon = 'spread';
+  game.gate.integrity = 74;
+  // The boss, at 60% HP so the boss bar reads mid-fight.
+  const boss = new Boss('shatterheart', 950, 300, rng);
+  boss.hp = 78;
+  boss.angle = 0.6;
+  game.enemies.push(boss);
   const spots = [
-    ['dart', 880, 220], ['mote', 980, 330], ['mote', 760, 180],
-    ['spitter', 1020, 500], ['dart', 700, 560], ['splitter', 900, 420],
-    ['mote', 620, 300], ['bulwark', 1080, 300], ['dart', 840, 640],
-    ['mote', 560, 520], ['spitter', 940, 150], ['dart', 1120, 460],
+    ['dart', 830, 210], ['mote', 860, 390], ['mote', 1040, 210],
+    ['spitter', 1080, 430], ['dart', 780, 320], ['splitter', 1010, 480],
+    ['mote', 700, 260], ['bulwark', 1120, 330], ['dart', 900, 540],
+    ['mote', 620, 420], ['spitter', 1060, 140], ['dart', 1180, 520],
   ];
   for (const [kind, x, y] of spots) {
     const e = new Enemy(kind, x, y, rng);
     e.angle = rand(rng, 0, 6.28);
     game.enemies.push(e);
   }
-  // A spread of player bolts mid-flight toward the swarm.
-  for (let i = 0; i < 7; i++) {
-    const a = -0.5 + (rand(rng, -0.12, 0.12));
-    game.bullets.spawn(
-      470 + i * 46, 420 - i * 12, a, 780, 1, false, '#7df9ff', true,
+  // The boss's radial burst, frozen mid-flight.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * 6.28318 + 0.6;
+    game.enemyBullets.spawn(
+      950 + Math.cos(a) * 70, 300 + Math.sin(a) * 70, a, 190, 1, false, '#e0aaff', false,
     );
   }
-  game.enemyBullets.spawn(1020, 500, 2.6, 220, 1, false, '#c77dff', false);
-  game.enemyBullets.spawn(1020, 500, 2.9, 220, 1, false, '#c77dff', false);
+  // Trine spread mid-flight from the ship toward the boss.
+  for (let j = 0; j < 3; j++) {
+    for (let i = 0; i < 3; i++) {
+      const a = -0.35 + (j - 1) * 0.14;
+      const d = 90 + i * 70;
+      game.bullets.spawn(
+        400 + Math.cos(a) * d, 500 + Math.sin(a) * d, a, 780, 1, false, '#7df9ff', true,
+      );
+    }
+  }
   // Explosions and shards from recent kills.
-  game.particles.burst(880, 220, '#ff8a3d', 26, 220, 0.8, 3);
-  game.particles.burst(760, 180, '#ff5d8f', 18, 180, 0.7, 3);
-  game.particles.ring(880, 220, '#ffd166', 90);
-  game.particles.floatText(880, 190, '+400', '#ffd166', 18);
-  game.particles.floatText(760, 150, 'COMBO x4', '#7df9ff', 15);
-  for (let i = 0; i < 5; i++) game.shards.spawn(820 + i * 24, 260 + (i % 2) * 20, rng);
-  game.banner = null;
+  game.particles.burst(830, 210, '#ff8a3d', 26, 220, 0.8, 3);
+  game.particles.burst(1040, 210, '#ff5d8f', 18, 180, 0.7, 3);
+  game.particles.ring(950, 300, '#ffd166', 120);
+  game.particles.floatText(830, 180, '+500', '#ffd166', 18);
+  game.particles.floatText(1040, 180, 'COMBO x8', '#7df9ff', 15);
+  for (let i = 0; i < 5; i++) game.shards.spawn(720 + i * 24, 380 + (i % 2) * 20, rng);
+  game.banner = { text: 'WARNING', sub: 'SHATTERHEART APPROACHES', t: 2.6 };
 }
