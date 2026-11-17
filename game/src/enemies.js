@@ -1,14 +1,17 @@
-// enemies.js — the Shatter swarm. Five kinds plus two bosses, all steering
+// enemies.js — the Shatter swarm. Six kinds plus two bosses, all steering
 // toward the Drift Gate (or the player when close), with distinct shapes,
-// speeds and attacks so every wave reads differently at a glance.
+// speeds and attacks so every night reads differently at a glance.
+// Snuff-moths are different: they fly straight for the beacon lanterns and
+// snuff them out — the keeper has to chase them down.
 import { TAU, clamp, angleTo, rand, pick } from './utils.js';
 
 export const KINDS = {
-  mote: { hp: 1, speed: 150, r: 10, score: 50, color: '#ff5d8f', shape: 'diamond', gateDmg: 4 },
-  dart: { hp: 2, speed: 120, r: 13, score: 100, color: '#ff8a3d', shape: 'triangle', gateDmg: 6 },
-  spitter: { hp: 3, speed: 70, r: 14, score: 150, color: '#c77dff', shape: 'hex', gateDmg: 6 },
-  splitter: { hp: 4, speed: 85, r: 17, score: 200, color: '#ffd166', shape: 'square', gateDmg: 8 },
-  bulwark: { hp: 12, speed: 42, r: 24, score: 300, color: '#ff3d5e', shape: 'octagon', gateDmg: 14 },
+  mote: { hp: 1, speed: 150, r: 10, score: 50, color: '#ff5d8f', shape: 'diamond', gateDmg: 4, name: 'CINDER' },
+  dart: { hp: 2, speed: 120, r: 13, score: 100, color: '#ff8a3d', shape: 'triangle', gateDmg: 6, name: 'EMBER DART' },
+  spitter: { hp: 3, speed: 70, r: 14, score: 150, color: '#c77dff', shape: 'hex', gateDmg: 6, name: 'HEX SPITTER' },
+  splitter: { hp: 4, speed: 85, r: 17, score: 200, color: '#ffd166', shape: 'square', gateDmg: 8, name: 'SPLITTER' },
+  bulwark: { hp: 12, speed: 42, r: 24, score: 300, color: '#ff3d5e', shape: 'octagon', gateDmg: 14, name: 'BULWARK' },
+  snuff: { hp: 2, speed: 105, r: 12, score: 125, color: '#8a7cff', shape: 'moth', gateDmg: 4, name: 'SNUFF-MOTH' },
 };
 
 let nextId = 1;
@@ -27,6 +30,7 @@ export class Enemy {
     this.score = def.score;
     this.color = def.color;
     this.shape = def.shape;
+    this.name = def.name;
     this.gateDmg = def.gateDmg;
     this.angle = 0;
     this.spin = (rng() - 0.5) * 2;
@@ -41,6 +45,25 @@ export class Enemy {
     this.wobble += dt * 3;
     const gx = game.gate.x, gy = game.gate.y;
     const dp = Math.hypot(game.player.x - this.x, game.player.y - this.y);
+    // A snuff-moth ignores the player and the gate: it flies for the
+    // nearest lit beacon lantern and dies snuffing it out.
+    if (this.kind === 'snuff' && game.lanterns) {
+      let best = null, bd = Infinity;
+      for (const L of game.lanterns) {
+        if (L.flame <= 5) continue;
+        const d = Math.hypot(L.x - this.x, L.y - this.y);
+        if (d < bd) { bd = d; best = L; }
+      }
+      if (best) {
+        const a = angleTo(this.x, this.y, best.x, best.y) + Math.sin(this.wobble) * 0.15;
+        this.vx = Math.cos(a) * this.speed;
+        this.vy = Math.sin(a) * this.speed;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.angle += this.spin * dt;
+        return;
+      }
+    }
     // Chasers hunt the player when close; everyone drifts to the gate.
     let tx = gx, ty = gy;
     if (this.kind !== 'bulwark' && dp < 240) { tx = game.player.x; ty = game.player.y; }
@@ -70,7 +93,15 @@ export class Enemy {
     ctx.lineWidth = 1.5;
     const r = this.r;
     ctx.beginPath();
-    if (this.shape === 'diamond') {
+    if (this.shape === 'moth') {
+      // Two beating wings and a slim body — a moth drawn to the flame.
+      const flap = Math.sin(this.wobble * 2) * 0.35;
+      ctx.moveTo(0, -r * 0.4);
+      ctx.quadraticCurveTo(r * 1.1, -r * (1.1 + flap), r * 0.9, r * 0.2);
+      ctx.quadraticCurveTo(r * 0.5, r * 0.7, 0, r * 0.4);
+      ctx.quadraticCurveTo(-r * 0.5, r * 0.7, -r * 0.9, r * 0.2);
+      ctx.quadraticCurveTo(-r * 1.1, -r * (1.1 + flap), 0, -r * 0.4);
+    } else if (this.shape === 'diamond') {
       ctx.moveTo(r, 0); ctx.lineTo(0, r * 0.7); ctx.lineTo(-r, 0); ctx.lineTo(0, -r * 0.7);
     } else if (this.shape === 'triangle') {
       ctx.moveTo(r, 0); ctx.lineTo(-r * 0.8, r * 0.8); ctx.lineTo(-r * 0.8, -r * 0.8);

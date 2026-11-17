@@ -117,9 +117,9 @@ export class Starfield {
       this.layers.push({ speed: 6 + l * 10, stars });
     }
     this.nebulae = [
-      { x: w * 0.18, y: h * 0.25, r: 260, color: 'rgba(123,92,255,0.16)' },
-      { x: w * 0.85, y: h * 0.7, r: 300, color: 'rgba(255,46,136,0.10)' },
-      { x: w * 0.6, y: h * 0.12, r: 220, color: 'rgba(25,227,255,0.09)' },
+      { x: w * 0.18, y: h * 0.25, r: 260, color: 'rgba(255,166,66,0.13)' },
+      { x: w * 0.85, y: h * 0.7, r: 300, color: 'rgba(123,92,255,0.14)' },
+      { x: w * 0.6, y: h * 0.12, r: 220, color: 'rgba(255,122,46,0.08)' },
     ];
   }
 

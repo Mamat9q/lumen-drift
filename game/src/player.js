@@ -3,10 +3,10 @@
 import { TAU, clamp, angleTo } from './utils.js';
 
 export const WEAPONS = {
-  pulse: { name: 'PULSE CANNON', rate: 8, speed: 780, damage: 1, spread: 0, count: 1, pierce: false, color: '#7df9ff' },
-  twin: { name: 'TWIN LANCE', rate: 8, speed: 820, damage: 1, spread: 0, count: 2, pierce: false, color: '#7df9ff' },
-  spread: { name: 'TRINE SPREAD', rate: 7, speed: 760, damage: 1, spread: 0.22, count: 3, pierce: false, color: '#ffd166' },
-  rail: { name: 'RAIL LANCE', rate: 3.4, speed: 1150, damage: 3, spread: 0, count: 1, pierce: true, color: '#ff5d8f' },
+  pulse: { name: 'PULSE LAMP', rate: 8, speed: 780, damage: 1, spread: 0, count: 1, pierce: false, color: '#7df9ff' },
+  twin: { name: 'TWIN WICKS', rate: 8, speed: 820, damage: 1, spread: 0, count: 2, pierce: false, color: '#7df9ff' },
+  spread: { name: 'TRINE FAN', rate: 7, speed: 760, damage: 1, spread: 0.22, count: 3, pierce: false, color: '#ffd166' },
+  rail: { name: 'LONGFLAME LANCE', rate: 3.4, speed: 1150, damage: 3, spread: 0, count: 1, pierce: true, color: '#ff5d8f' },
 };
 
 export class Player {
@@ -142,6 +142,49 @@ export class Player {
     ctx.fillStyle = '#eafcff';
     ctx.beginPath();
     ctx.arc(4, 0, 4.5, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    // The keeper's own lantern, hung below the skiff in world space so it
+    // always hangs down, swaying gently with a warm flame inside.
+    const sway = Math.sin(time * 2.2) * 2;
+    ctx.save();
+    ctx.translate(this.x + sway, this.y);
+    ctx.globalCompositeOperation = 'lighter';
+    const lg = ctx.createRadialGradient(0, 22, 0, 0, 22, 26);
+    lg.addColorStop(0, 'rgba(255,176,61,0.4)');
+    lg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.arc(0, 22, 26, 0, TAU);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = 'rgba(160,130,80,0.95)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 10);
+    ctx.lineTo(0, 16);
+    ctx.stroke();
+    ctx.fillStyle = '#8a6d3b';
+    ctx.beginPath();
+    ctx.moveTo(-5, 16);
+    ctx.lineTo(5, 16);
+    ctx.lineTo(4, 19);
+    ctx.lineTo(-4, 19);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,220,150,0.35)';
+    ctx.strokeStyle = '#b08d4f';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(-5, 19, 10, 11, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ffb03d';
+    ctx.beginPath();
+    ctx.moveTo(0, 29);
+    ctx.quadraticCurveTo(-3, 25, 0, 21);
+    ctx.quadraticCurveTo(3, 25, 0, 29);
+    ctx.closePath();
     ctx.fill();
     ctx.restore();
     // Dash cooldown ring.

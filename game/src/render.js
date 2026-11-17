@@ -8,53 +8,202 @@ const FONT = "'Segoe UI', system-ui, sans-serif";
 
 export function drawBackground(ctx, game, time) {
   const g = ctx.createLinearGradient(0, 0, 0, game.h);
-  g.addColorStop(0, '#070a1e');
-  g.addColorStop(0.55, '#0b1030');
-  g.addColorStop(1, '#04050d');
+  g.addColorStop(0, '#0a0618');
+  g.addColorStop(0.55, '#171233');
+  g.addColorStop(1, '#05030c');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, game.w, game.h);
   game.starfield.draw(ctx);
 }
 
+// A small flame teardrop, filled to `frac` (0..1) — the HUD's lantern pips
+// and the beacon flames themselves are drawn from this one shape.
+export function flameIcon(ctx, x, y, size, frac, lit) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 12, size / 12);
+  ctx.beginPath();
+  ctx.moveTo(0, 6);
+  ctx.bezierCurveTo(-5, 1, -4, -4, 0, -7);
+  ctx.bezierCurveTo(4, -4, 5, 1, 0, 6);
+  ctx.closePath();
+  if (!lit || frac <= 0.02) {
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fill();
+  } else {
+    const fg = ctx.createLinearGradient(0, -7, 0, 6);
+    fg.addColorStop(0, '#fff3c4');
+    fg.addColorStop(0.6, '#ffb03d');
+    fg.addColorStop(1, '#ff7a2e');
+    ctx.fillStyle = fg;
+    ctx.fill();
+    // The unlit part of the wick shows as a dark cap from the top.
+    if (frac < 1) {
+      ctx.fillStyle = 'rgba(5,3,12,0.75)';
+      ctx.fillRect(-5, -7, 10, 13 * (1 - frac));
+    }
+  }
+  ctx.restore();
+}
+
+// One beacon lantern: a brass cap, a glass belly and a flame that flickers
+// with its remaining fuel. An unlit lantern is a cold, dark cage.
+export function drawLantern(ctx, L, time, index) {
+  const f = L.flame / 100;
+  const flick = 0.8 + 0.2 * Math.sin(time * 7 + index * 2.4) * Math.sin(time * 3.1 + index);
+  ctx.save();
+  ctx.translate(L.x, L.y);
+  if (f > 0.02) {
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 70 * f + 20);
+    glow.addColorStop(0, `rgba(255,176,61,${0.34 * f * flick})`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 70 * f + 20, 0, TAU);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  // Hanging chain and brass cap.
+  ctx.strokeStyle = 'rgba(160,130,80,0.9)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -34);
+  ctx.lineTo(0, -18);
+  ctx.stroke();
+  ctx.fillStyle = '#8a6d3b';
+  ctx.beginPath();
+  ctx.moveTo(-11, -18);
+  ctx.lineTo(11, -18);
+  ctx.lineTo(7, -10);
+  ctx.lineTo(-7, -10);
+  ctx.closePath();
+  ctx.fill();
+  // Glass belly.
+  ctx.fillStyle = f > 0.02 ? 'rgba(255,220,150,0.28)' : 'rgba(120,120,150,0.14)';
+  ctx.strokeStyle = '#b08d4f';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(-11, -10, 22, 24, 6);
+  ctx.fill();
+  ctx.stroke();
+  // The flame inside.
+  if (f > 0.02) {
+    ctx.save();
+    ctx.translate(0, 8);
+    ctx.scale(1, 0.9 + 0.12 * Math.sin(time * 9 + index * 1.7));
+    flameIcon(ctx, 0, 0, 13 * (0.5 + 0.5 * f), 1, true);
+    ctx.restore();
+  }
+  // Brass base.
+  ctx.fillStyle = '#8a6d3b';
+  ctx.beginPath();
+  ctx.moveTo(-8, 14);
+  ctx.lineTo(8, 14);
+  ctx.lineTo(11, 20);
+  ctx.lineTo(-11, 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+export function drawLanterns(ctx, game, time) {
+  game.lanterns.forEach((L, i) => drawLantern(ctx, L, time, i));
+}
+
 export function drawGate(ctx, game, time) {
+  // The Great Lantern: the gate is a giant hanging lantern, not a portal.
+  // Its flame is the light the keeper defends — bright gold while the gate
+  // holds, guttering red as its integrity falls.
   const gate = game.gate;
   const hpFrac = gate.integrity / gate.maxIntegrity;
   const pulse = 0.75 + 0.25 * Math.sin(time * 2.4);
+  const flick = 0.9 + 0.1 * Math.sin(time * 8.3) * Math.sin(time * 5.1);
   ctx.save();
   ctx.translate(gate.x, gate.y);
   ctx.globalCompositeOperation = 'lighter';
-  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 110);
-  const col = hpFrac > 0.5 ? '25,227,255' : hpFrac > 0.25 ? '255,209,102' : '255,61,94';
-  glow.addColorStop(0, `rgba(${col},${0.30 * pulse})`);
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 130);
+  const col = hpFrac > 0.5 ? '255,176,61' : hpFrac > 0.25 ? '255,140,60' : '255,61,94';
+  glow.addColorStop(0, `rgba(${col},${0.34 * pulse * flick})`);
   glow.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = glow;
   ctx.beginPath();
-  ctx.arc(0, 0, 110, 0, TAU);
+  ctx.arc(0, 0, 130, 0, TAU);
   ctx.fill();
-  ctx.globalCompositeOperation = 'source-over';
-  // Swirling portal.
-  for (let i = 0; i < 3; i++) {
-    ctx.strokeStyle = `rgba(${col},${0.9 - i * 0.25})`;
-    ctx.lineWidth = 3 - i * 0.7;
+  // Slow light rays turning around the flame.
+  ctx.globalAlpha = 0.10 * pulse;
+  ctx.strokeStyle = '#ffcf7d';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 8; i++) {
+    const a = time * 0.25 + (i / 8) * TAU;
     ctx.beginPath();
-    const start = time * (1.2 + i * 0.4) + i * 2.1;
-    ctx.arc(0, 0, 46 - i * 10, start, start + Math.PI * 1.5);
+    ctx.moveTo(Math.cos(a) * 62, Math.sin(a) * 62);
+    ctx.lineTo(Math.cos(a) * 118, Math.sin(a) * 118);
     ctx.stroke();
   }
-  ctx.fillStyle = '#eafcff';
-  ctx.beginPath();
-  ctx.arc(0, 0, 7 + Math.sin(time * 3) * 1.5, 0, TAU);
-  ctx.fill();
-  // Pylons.
-  ctx.fillStyle = '#16233f';
-  ctx.strokeStyle = `rgba(${col},0.9)`;
-  ctx.lineWidth = 2;
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  // Hanging chains.
+  ctx.strokeStyle = 'rgba(160,130,80,0.95)';
+  ctx.lineWidth = 3;
   for (const s of [-1, 1]) {
     ctx.beginPath();
-    ctx.roundRect(s * 62 - 7, -34, 14, 68, 5);
-    ctx.fill();
+    ctx.moveTo(s * 40, -58);
+    ctx.lineTo(s * 52, -92);
     ctx.stroke();
   }
+  // Brass ring frame.
+  ctx.strokeStyle = '#b08d4f';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(0, 0, 58, 0, TAU);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,220,150,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, 50, 0, TAU);
+  ctx.stroke();
+  // Glass dome.
+  const glass = ctx.createRadialGradient(-12, -16, 4, 0, 0, 52);
+  glass.addColorStop(0, 'rgba(255,236,180,0.5)');
+  glass.addColorStop(1, 'rgba(255,180,80,0.12)');
+  ctx.fillStyle = glass;
+  ctx.beginPath();
+  ctx.arc(0, 0, 50, 0, TAU);
+  ctx.fill();
+  // The great flame, guttering lower as the gate weakens.
+  const flameH = 34 * (0.45 + 0.55 * hpFrac) * flick;
+  ctx.save();
+  ctx.translate(0, 16);
+  ctx.scale(flameH / 34, flameH / 34);
+  const fg = ctx.createLinearGradient(0, -34, 0, 10);
+  fg.addColorStop(0, '#fff3c4');
+  fg.addColorStop(0.55, '#ffb03d');
+  fg.addColorStop(1, '#ff7a2e');
+  ctx.fillStyle = fg;
+  ctx.beginPath();
+  ctx.moveTo(0, 10);
+  ctx.bezierCurveTo(-20, -2, -15, -22, 0, -34);
+  ctx.bezierCurveTo(15, -22, 20, -2, 0, 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fff8e0';
+  ctx.beginPath();
+  ctx.moveTo(0, 8);
+  ctx.bezierCurveTo(-8, 0, -6, -10, 0, -16);
+  ctx.bezierCurveTo(6, -10, 8, 0, 0, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  // Brass base.
+  ctx.fillStyle = '#8a6d3b';
+  ctx.beginPath();
+  ctx.moveTo(-26, 52);
+  ctx.lineTo(26, 52);
+  ctx.lineTo(34, 64);
+  ctx.lineTo(-34, 64);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
   // Integrity arc under the gate.
   ctx.save();
@@ -63,7 +212,7 @@ export function drawGate(ctx, game, time) {
   ctx.beginPath();
   ctx.arc(gate.x, gate.y, 78, Math.PI * 0.15, Math.PI * 0.85);
   ctx.stroke();
-  ctx.strokeStyle = hpFrac > 0.5 ? '#19e3ff' : hpFrac > 0.25 ? '#ffd166' : '#ff3d5e';
+  ctx.strokeStyle = hpFrac > 0.5 ? '#ffb03d' : hpFrac > 0.25 ? '#ffd166' : '#ff3d5e';
   ctx.beginPath();
   ctx.arc(gate.x, gate.y, 78, Math.PI * 0.15, Math.PI * 0.15 + Math.PI * 0.7 * hpFrac);
   ctx.stroke();
@@ -73,7 +222,8 @@ export function drawGate(ctx, game, time) {
 export function drawWorld(ctx, game, time, showGate = true) {
   drawBackground(ctx, game, time);
   if (showGate) drawGate(ctx, game, time);
-  game.shards.draw(ctx, time);
+  drawLanterns(ctx, game, time);
+  game.embers.draw(ctx, time);
   for (const e of game.enemies) e.draw(ctx);
   // On the game-over screen the ship is wreckage: only its explosion shows.
   if (game.state !== 'gameover') game.player.draw(ctx, time);
@@ -116,18 +266,31 @@ export function drawHUD(ctx, game) {
     ctx.fillStyle = 'rgba(255,209,102,0.35)';
     ctx.fillRect(20, 88, 90 * clamp(game.comboTimer / 2.5, 0, 1), 4);
   }
-  // Wave, top-center.
+  // Night, top-center.
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = `600 12px ${FONT}`;
-  ctx.fillText('WAVE', w / 2, 26);
+  ctx.fillText('NIGHT', w / 2, 26);
   ctx.fillStyle = '#ffffff';
   ctx.font = `800 30px ${FONT}`;
   ctx.fillText(`${game.wave} / 10`, w / 2, 56);
   const remaining = game.enemies.length + game.spawnQueue;
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = `600 13px ${FONT}`;
-  ctx.fillText(remaining > 0 ? `${remaining} HOSTILES` : 'SECTOR CLEAR', w / 2, 80);
+  ctx.fillText(remaining > 0 ? `${remaining} HOSTILES` : 'NIGHT HELD', w / 2, 80);
+  // Beacon lanterns, under the night counter: three flames that gutter
+  // as their fuel runs down. All three out means the gate itself fades.
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = `600 11px ${FONT}`;
+  ctx.fillText('LANTERNS', w / 2, 100);
+  game.lanterns.forEach((L, i) => {
+    flameIcon(ctx, w / 2 - 26 + i * 26, 112, 15, L.flame / 100, L.flame > 5);
+  });
+  if (game.lanternsLit === 0) {
+    ctx.fillStyle = '#ff5d8f';
+    ctx.font = `800 13px ${FONT}`;
+    ctx.fillText('ALL LANTERNS OUT — THE GATE FADES', w / 2, 132);
+  }
   // Hull + gate, top-right.
   ctx.textAlign = 'right';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
@@ -136,11 +299,11 @@ export function drawHUD(ctx, game) {
   for (let i = 0; i < game.player.maxHull; i++) {
     heart(ctx, w - 26 - i * 26, 46, 11, i < game.player.hull);
   }
-  ctx.fillText('GATE', w - 20, 72);
+  ctx.fillText('GATE FLAME', w - 20, 72);
   const gf = game.gate.integrity / game.gate.maxIntegrity;
   ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.fillRect(w - 170, 80, 150, 7);
-  ctx.fillStyle = gf > 0.5 ? '#19e3ff' : gf > 0.25 ? '#ffd166' : '#ff3d5e';
+  ctx.fillStyle = gf > 0.5 ? '#ffb03d' : gf > 0.25 ? '#ffd166' : '#ff3d5e';
   ctx.fillRect(w - 170, 80, 150 * gf, 7);
   // Dash + overdrive, bottom-left.
   ctx.textAlign = 'left';
@@ -165,12 +328,12 @@ export function drawHUD(ctx, game) {
   ctx.fillStyle = '#ffffff';
   ctx.font = `800 18px ${FONT}`;
   ctx.fillText(game.player.weaponDef.name, w - 20, game.h - 20);
-  // Boss bar.
+  // Boss bar (below the lantern pips).
   const boss = game.enemies.find((e) => e.isBoss);
   if (boss) {
     const bw = 420;
     const bx = (w - bw) / 2;
-    const by = 104;
+    const by = 146;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff5d8f';
     ctx.font = `800 15px ${FONT}`;
@@ -228,27 +391,28 @@ export function drawTitle(ctx, game, time) {
   ctx.fillText('LUMEN DRIFT', w / 2, 218 + bob);
   ctx.fillStyle = '#ff5d8f';
   ctx.font = `700 22px ${FONT}`;
-  ctx.fillText('— DEFEND THE DRIFT GATE —', w / 2, 258 + bob);
+  ctx.fillText('— LANTERNKEEPER OF THE DRIFT GATE —', w / 2, 258 + bob);
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.font = `400 17px ${FONT}`;
-  ctx.fillText('The Shatter swarm is coming. Hold the gate through 10 waves.', w / 2, 300 + bob);
-  ctx.fillText('Two bosses wait in the dark. Your light-ship is the last one left.', w / 2, 326 + bob);
+  ctx.fillText('The Shatter swarm comes to snuff the light. Tend the three beacon lanterns,', w / 2, 300 + bob);
+  ctx.fillText('keep the Great Lantern burning through ten nights — and mind the snuff-moths.', w / 2, 326 + bob);
   // Controls.
   panel(ctx, w / 2 - 330, 372, 660, 92);
   ctx.fillStyle = '#ffffff';
   ctx.font = `600 16px ${FONT}`;
-  ctx.fillText('WASD / ARROWS — fly      MOUSE — aim      HOLD CLICK — fire', w / 2, 404);
-  ctx.fillText('SPACE / RIGHT-CLICK — dash      E — overdrive      P — pause', w / 2, 434);
+  ctx.fillText('WASD / ARROWS — fly      MOUSE — aim      HOLD CLICK — fire', w / 2, 400);
+  ctx.fillText('FLY CLOSE TO A LANTERN — rekindle its flame', w / 2, 424);
+  ctx.fillText('SPACE / RIGHT-CLICK — dash      E — overdrive      P — pause', w / 2, 448);
   // Launch prompt, blinking.
   const blink = 0.65 + 0.35 * Math.sin(time * 4);
   ctx.globalAlpha = blink;
   ctx.fillStyle = '#ffd166';
   ctx.font = `800 24px ${FONT}`;
-  ctx.fillText('CLICK OR PRESS ENTER TO LAUNCH', w / 2, 522);
+  ctx.fillText('CLICK OR PRESS ENTER TO LIGHT THE FIRST LANTERN', w / 2, 522);
   ctx.globalAlpha = 1;
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.font = `400 14px ${FONT}`;
-  ctx.fillText('An original arcade defense game — no files leave your browser, no network needed.', w / 2, h - 28);
+  ctx.fillText('An original lantern-keeping arcade game — no files leave your browser, no network needed.', w / 2, h - 28);
   ctx.restore();
 }
 
@@ -260,10 +424,10 @@ export function drawUpgrade(ctx, game) {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffd166';
   ctx.font = `800 40px ${FONT}`;
-  ctx.fillText('WAVE CLEARED', w / 2, 130);
+  ctx.fillText('NIGHT HELD', w / 2, 130);
   ctx.fillStyle = '#ffffff';
   ctx.font = `600 19px ${FONT}`;
-  ctx.fillText('Choose one upgrade — click a card or press 1, 2, 3', w / 2, 166);
+  ctx.fillText('Choose a keeper’s craft — click a card or press 1, 2, 3', w / 2, 166);
   const cw = 250, ch = 210, gap = 30;
   const total = cw * 3 + gap * 2;
   const x0 = (w - total) / 2;
@@ -291,7 +455,7 @@ export function drawUpgrade(ctx, game) {
   });
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.font = `400 15px ${FONT}`;
-  ctx.fillText(`Next: WAVE ${game.wave + 1} of 10`, w / 2, y0 + ch + 46);
+  ctx.fillText(`Next: NIGHT ${game.wave + 1} of 10`, w / 2, y0 + ch + 46);
   ctx.restore();
 }
 
@@ -318,16 +482,16 @@ export function drawGameOver(ctx, game) {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ff3d5e';
   ctx.font = `900 64px ${FONT}`;
-  ctx.fillText('THE DRIFT GOES DARK', w / 2, 220);
+  ctx.fillText('THE LIGHT GOES OUT', w / 2, 220);
   ctx.fillStyle = '#ffffff';
   ctx.font = `400 19px ${FONT}`;
-  ctx.fillText(game.overReason || 'Your light-ship was shattered.', w / 2, 262);
+  ctx.fillText(game.overReason || 'Your lantern-skiff was shattered.', w / 2, 262);
   drawStats(ctx, game, 310);
   const blink = 0.65 + 0.35 * Math.sin(game.time * 4);
   ctx.globalAlpha = blink;
   ctx.fillStyle = '#ffd166';
   ctx.font = `800 24px ${FONT}`;
-  ctx.fillText('PRESS R TO FLY AGAIN', w / 2, 560);
+  ctx.fillText('PRESS R TO KEEP AGAIN', w / 2, 560);
   ctx.globalAlpha = 1;
   ctx.restore();
 }
@@ -343,10 +507,10 @@ export function drawVictory(ctx, game) {
   grad.addColorStop(1, '#ffd166');
   ctx.fillStyle = grad;
   ctx.font = `900 72px ${FONT}`;
-  ctx.fillText('GATE SECURED', w / 2, 210);
+  ctx.fillText('THE GATE STILL BURNS', w / 2, 210);
   ctx.fillStyle = '#ffffff';
   ctx.font = `400 19px ${FONT}`;
-  ctx.fillText('All 10 waves broken. The Drift Gate still burns bright.', w / 2, 252);
+  ctx.fillText('All ten nights held. Every lantern still lit.', w / 2, 252);
   drawStats(ctx, game, 300);
   const blink = 0.65 + 0.35 * Math.sin(game.time * 4);
   ctx.globalAlpha = blink;
@@ -372,7 +536,7 @@ function drawStats(ctx, game, y0) {
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.font = `600 17px ${FONT}`;
   ctx.fillText(
-    `WAVE ${game.wave}  •  ${game.kills} KILLS  •  ${acc}% ACCURACY  •  ${mins}:${secs}`,
+    `NIGHT ${game.wave}  •  ${game.kills} KILLS  •  ${acc}% ACCURACY  •  ${mins}:${secs}`,
     w / 2, y0 + 96,
   );
 }

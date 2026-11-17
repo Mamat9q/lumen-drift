@@ -1,5 +1,5 @@
 // bullets.js — projectile pools for the player and the swarm, plus the
-// shard pickups enemies drop. All collision is circle tests, resolved in
+// ember pickups enemies drop. All collision is circle tests, resolved in
 // main.js so the pools stay dumb and fast.
 import { TAU } from './utils.js';
 
@@ -40,7 +40,7 @@ export class BulletPool {
   }
 }
 
-export class ShardPool {
+export class EmberPool {
   constructor() { this.items = []; }
   spawn(x, y, rng) {
     const n = 1 + Math.floor(rng() * 2);
@@ -49,7 +49,7 @@ export class ShardPool {
       this.items.push({
         x, y,
         vx: Math.cos(a) * 120, vy: Math.sin(a) * 120,
-        r: 5, life: 9, kind: rng() < 0.06 ? 'heart' : 'shard',
+        r: 5, life: 9, kind: rng() < 0.06 ? 'heart' : 'ember',
       });
     }
   }
@@ -85,11 +85,20 @@ export class ShardPool {
         ctx.textBaseline = 'middle';
         ctx.fillText('+', s.x, s.y + 0.5);
       } else {
-        ctx.fillStyle = `rgba(255,209,102,${pulse})`;
+        // A live ember: a tiny flame diamond, warm gold.
+        ctx.fillStyle = `rgba(255,176,61,${pulse})`;
         ctx.save();
         ctx.translate(s.x, s.y);
-        ctx.rotate(time * 2 + s.x);
-        ctx.fillRect(-3.5, -3.5, 7, 7);
+        ctx.beginPath();
+        ctx.moveTo(0, -6);
+        ctx.quadraticCurveTo(4, -1, 0, 6);
+        ctx.quadraticCurveTo(-4, -1, 0, -6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = `rgba(255,243,196,${pulse})`;
+        ctx.beginPath();
+        ctx.arc(0, 1, 2, 0, TAU);
+        ctx.fill();
         ctx.restore();
       }
     }

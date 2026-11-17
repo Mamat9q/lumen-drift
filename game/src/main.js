@@ -7,7 +7,7 @@ import { SoundEngine } from './audio.js';
 import { ParticleSystem, Starfield } from './particles.js';
 import { Player } from './player.js';
 import { Enemy, Boss, edgeSpawn } from './enemies.js';
-import { BulletPool, ShardPool } from './bullets.js';
+import { BulletPool, EmberPool } from './bullets.js';
 import { WAVE_TABLE, TOTAL_WAVES, pickUpgrades } from './waves.js';
 import * as render from './render.js';
 import { stageShot } from './shots.js';
@@ -28,9 +28,14 @@ export class Game {
     this.player = new Player(this.w / 2, this.h / 2 + 250);
     this.bullets = new BulletPool();
     this.enemyBullets = new BulletPool();
-    this.shards = new ShardPool();
+    this.embers = new EmberPool();
     this.enemies = [];
     this.gate = { x: this.w / 2, y: this.h / 2, r: 52, integrity: 100, maxIntegrity: 100 };
+    // The three beacon lanterns the keeper tends. A flame gutters down on
+    // its own; fly close to rekindle it. If all three go out, the dark
+    // creeps in and the gate itself starts to fade.
+    this.lanterns = this.makeLanterns();
+    this.lanternsLit = 3;
     this.state = 'title';
     this.score = 0;
     this.combo = 0;
@@ -69,6 +74,14 @@ export class Game {
     this.scale = Math.min(cw / this.w, ch / this.h);
     this.offsetX = (cw - this.w * this.scale) / 2;
     this.offsetY = (ch - this.h * this.scale) / 2;
+  }
+
+  makeLanterns() {
+    return [
+      { x: 210, y: 150, flame: 100 },
+      { x: 1070, y: 150, flame: 100 },
+      { x: 640, y: 630, flame: 100 },
+    ];
   }
 
   mouseWorld() {
@@ -114,18 +127,20 @@ export class Game {
     this.shotsHit = 0;
     this.runTime = 0;
     this.gate.integrity = this.gate.maxIntegrity;
+    this.lanterns = this.makeLanterns();
+    this.lanternsLit = 3;
     this.player.reset(this.w / 2, this.h / 2 + 170);
     this.enemies = [];
     this.bullets.items = [];
     this.enemyBullets.items = [];
-    this.shards.items = [];
+    this.embers.items = [];
     this.particles = new ParticleSystem();
     this.paused = false;
     this.state = 'playing';
     this.audio.ensure();
     this.audio.startMusic();
     this.startWave(1);
-    this.setStatus('Wave 1. Defend the Drift Gate.');
+    this.setStatus('Night 1. Tend the lanterns and defend the Drift Gate.');
   }
 
   startWave(n) {
@@ -146,7 +161,7 @@ export class Game {
       this.banner = { text: 'WARNING', sub: def.boss === 'voidmaw' ? 'VOID MAW APPROACHES' : 'SHATTERHEART APPROACHES', t: 2.6 };
       this.audio.bossAlarm();
     } else {
-      this.banner = { text: `WAVE ${n}`, sub: n === TOTAL_WAVES ? 'FINAL WAVE — HOLD THE GATE' : 'HOSTILES INBOUND', t: 2.2 };
+      this.banner = { text: `NIGHT ${n}`, sub: n === TOTAL_WAVES ? 'FINAL NIGHT — HOLD THE LIGHT' : 'HOSTILES INBOUND — MIND THE LANTERNS', t: 2.2 };
     }
   }
 
@@ -165,7 +180,7 @@ export class Game {
     this.particles.addShake(12);
     this.particles.burst(this.player.x, this.player.y, '#ff5d8f', 22, 240, 0.7, 3);
     this.audio.playerHit();
-    if (this.player.hull <= 0) this.gameOver('Your light-ship was shattered.');
+    if (this.player.hull <= 0) this.gameOver('Your lantern-skiff was shattered.');
   }
 
   killEnemy(e) {
@@ -181,7 +196,7 @@ export class Game {
       this.particles.addShake(16);
     }
     this.particles.floatText(e.x, e.y - 10, `+${e.score * this.comboMult}`, '#ffd166', 15);
-    this.shards.spawn(e.x, e.y, Math.random);
+    this.embers.spawn(e.x, e.y, Math.random);
     this.audio.enemyDie();
     if (e.kind === 'splitter' && !e.isBoss) {
       for (let i = 0; i < 3; i++) {
@@ -197,14 +212,14 @@ export class Game {
     this.overReason = reason;
     this.audio.stopMusic();
     this.audio.gameOver();
-    this.setStatus(`Game over. ${reason} Final score ${this.score}. Press R to fly again.`);
+    this.setStatus(`The light goes out. ${reason} Final score ${this.score}. Press R to keep again.`);
   }
 
   victory() {
     this.state = 'victory';
     this.audio.stopMusic();
     this.audio.victory();
-    this.setStatus(`Victory! The gate is secured. Final score ${this.score}. Press R to play again.`);
+    this.setStatus(`The gate still burns! Final score ${this.score}. Press R to play again.`);
   }
 
   update(dt) {
@@ -304,6 +319,27 @@ export class Game {
       this.comboTimer -= dt;
       if (this.comboTimer <= 0) { this.combo = 0; this.comboMult = 1; }
     }
+    // Beacon lanterns: every flame gutters down on its own. Fly close to
+    // a lantern to rekindle it. If all three go out, the dark creeps in
+    // and the gate itself starts to fade.
+    let lit = 0;
+    for (const L of this.lanterns) {
+      L.flame = Math.max(0, L.flame - 1.0 * dt);
+      const d = Math.hypot(this.player.x - L.x, this.player.y - L.y);
+      if (d < 80) {
+        L.flame = Math.min(100, L.flame + 45 * dt);
+        if (Math.random() < 0.3) this.particles.trail(L.x, L.y - 14, '#ffd166', 2);
+      }
+      if (L.flame > 5) lit++;
+    }
+    this.lanternsLit = lit;
+    if (lit === 0) {
+      this.gate.integrity = Math.max(0, this.gate.integrity - 2.5 * dt);
+      if (this.gate.integrity <= 0) {
+        this.gameOver('The last lantern went out and the dark took the gate.');
+        return;
+      }
+    }
     // Spawn director.
     if (this.spawnBag.length > 0) {
       this.spawnTimer -= dt;
@@ -320,7 +356,7 @@ export class Game {
     for (const e of this.enemies) e.update(dt, this);
     this.bullets.update(dt, this);
     this.enemyBullets.update(dt, this);
-    this.shards.update(dt, this.player, this);
+    this.embers.update(dt, this.player, this);
     this.resolveCollisions();
     // Wave clear.
     if (this.state === 'playing' && this.spawnBag.length === 0 && this.enemies.length === 0) {
@@ -330,7 +366,7 @@ export class Game {
         this.state = 'upgrade';
         this.upgradeChoices = pickUpgrades(Math.random, this.player);
         this.audio.waveClear();
-        this.setStatus(`Wave ${this.wave} cleared. Choose an upgrade.`);
+        this.setStatus(`Night ${this.wave} held. Choose a keeper's craft.`);
       }
     }
   }
@@ -388,6 +424,30 @@ export class Game {
         }
       }
     }
+    // Enemies vs beacon lanterns: anything that touches a lantern throws
+    // itself at the flame and gutters it; a snuff-moth snuffs it out
+    // outright. Bosses are too big to be stopped by a lantern — they
+    // plough straight past it.
+    for (const e of this.enemies) {
+      if (e.dead || e.isBoss) continue;
+      for (const L of this.lanterns) {
+        if (L.flame <= 0) continue;
+        const rr = e.r + 16;
+        if ((e.x - L.x) ** 2 + (e.y - L.y) ** 2 < rr * rr) {
+          e.dead = true;
+          if (e.kind === 'snuff') {
+            L.flame = 0;
+            this.particles.burst(L.x, L.y, '#8a7cff', 26, 220, 0.7, 3);
+            this.particles.floatText(L.x, L.y - 26, 'SNUFFED!', '#8a7cff', 16);
+          } else {
+            L.flame = Math.max(0, L.flame - 25);
+            this.particles.burst(L.x, L.y, '#ffd166', 16, 180, 0.6, 3);
+          }
+          this.audio.gateHit();
+          break;
+        }
+      }
+    }
     // Deaths.
     for (const e of this.enemies) {
       if (!e.dead && e.hp <= 0) e.dead = true;
@@ -395,8 +455,8 @@ export class Game {
     const dead = this.enemies.filter((e) => e.dead);
     this.enemies = this.enemies.filter((e) => !e.dead);
     for (const e of dead) this.killEnemy(e);
-    // Shards vs player.
-    for (const s of this.shards.items) {
+    // Embers vs player.
+    for (const s of this.embers.items) {
       if (s.dead) continue;
       const rr = s.r + p.r + 4;
       if ((s.x - p.x) ** 2 + (s.y - p.y) ** 2 < rr * rr) {
@@ -410,7 +470,7 @@ export class Game {
         this.audio.pickup();
       }
     }
-    this.shards.items = this.shards.items.filter((s) => !s.dead);
+    this.embers.items = this.embers.items.filter((s) => !s.dead);
   }
 
   render() {

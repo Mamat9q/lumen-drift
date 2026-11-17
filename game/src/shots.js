@@ -12,8 +12,11 @@ export function stageShot(game, name, seed = 7) {
   game.starfield = new Starfield(game.w, game.h, mulberry32(seed + 1));
   if (name === 'title') {
     game.state = 'title';
-    // A live swarm drifts behind the dim title overlay — the menu reads as
-    // a game in progress, not a static poster.
+    // All three beacon lanterns burn bright behind the title; a live swarm
+    // drifts at the edges, so the menu reads as a game in progress.
+    game.lanterns[0].flame = 100;
+    game.lanterns[1].flame = 100;
+    game.lanterns[2].flame = 100;
     const edgeSpots = [
       ['dart', 150, 130], ['mote', 1130, 110], ['spitter', 120, 610],
       ['dart', 1140, 620], ['mote', 1040, 90],
@@ -36,7 +39,11 @@ export function stageShot(game, name, seed = 7) {
     game.shotsHit = 1294;
     game.runTime = 482;
     game.player.hull = 2;
-    game.gate.integrity = 64;
+    game.gate.integrity = 92;
+    // Ten nights held: every beacon lantern still burns, gate blazing.
+    game.lanterns[0].flame = 100;
+    game.lanterns[1].flame = 100;
+    game.lanterns[2].flame = 100;
     game.player.x = game.w / 2;
     game.player.y = game.h - 80;
     return;
@@ -49,9 +56,13 @@ export function stageShot(game, name, seed = 7) {
     game.shotsFired = 940;
     game.shotsHit = 588;
     game.runTime = 301;
-    game.overReason = 'The gate was overrun on wave 6.';
+    game.overReason = 'The last lantern went out on night 6.';
     game.player.hull = 0;
     game.gate.integrity = 0;
+    // The dark won: every beacon lantern is cold, the Great Lantern dead.
+    game.lanterns[0].flame = 0;
+    game.lanterns[1].flame = 0;
+    game.lanterns[2].flame = 0;
     game.player.x = game.w / 2 - 100;
     game.player.y = game.h / 2 + 250;
     // A last explosion where the ship died.
@@ -59,9 +70,10 @@ export function stageShot(game, name, seed = 7) {
     game.particles.ring(game.player.x, game.player.y, '#7df9ff', 130);
     return;
   }
-  // action: boss fight on wave 5 — SHATTERHEART mid-arena with its escort
-  // swarm, radial bullet ring, overdrive active and combo at x8. This is
-  // the game's signature moment, so it is the cover action shot.
+  // action: boss fight on night 5 — SHATTERHEART mid-arena with its escort
+  // swarm, radial bullet ring, overdrive active and combo at x8 — while a
+  // snuff-moth dives on the north-east beacon lantern, its flame guttering.
+  // This is the game's signature moment, so it is the cover action shot.
   game.state = 'playing';
   game.wave = 5;
   game.score = 21480;
@@ -81,11 +93,20 @@ export function stageShot(game, name, seed = 7) {
   game.player.overdriveActive = 4.2;
   game.player.weapon = 'spread';
   game.gate.integrity = 74;
+  game.lanterns[0].flame = 100;
+  game.lanterns[1].flame = 28;
+  game.lanterns[2].flame = 100;
   // The boss, at 60% HP so the boss bar reads mid-fight.
   const boss = new Boss('shatterheart', 950, 300, rng);
   boss.hp = 78;
   boss.angle = 0.6;
   game.enemies.push(boss);
+  // A snuff-moth closing on the guttering north-east lantern.
+  const snuff = new Enemy('snuff', 990, 210, rng);
+  snuff.angle = 0.9;
+  game.enemies.push(snuff);
+  game.particles.burst(1070, 150, '#8a7cff', 18, 170, 0.8, 3);
+  game.particles.floatText(1070, 118, 'SNUFF-MOTH!', '#8a7cff', 14);
   const spots = [
     ['dart', 830, 210], ['mote', 860, 390], ['mote', 1040, 210],
     ['spitter', 1080, 430], ['dart', 780, 320], ['splitter', 1010, 480],
@@ -114,12 +135,12 @@ export function stageShot(game, name, seed = 7) {
       );
     }
   }
-  // Explosions and shards from recent kills.
+  // Explosions and embers from recent kills.
   game.particles.burst(830, 210, '#ff8a3d', 26, 220, 0.8, 3);
   game.particles.burst(1040, 210, '#ff5d8f', 18, 180, 0.7, 3);
   game.particles.ring(950, 300, '#ffd166', 120);
   game.particles.floatText(830, 180, '+500', '#ffd166', 18);
   game.particles.floatText(1040, 180, 'COMBO x8', '#7df9ff', 15);
-  for (let i = 0; i < 5; i++) game.shards.spawn(720 + i * 24, 380 + (i % 2) * 20, rng);
+  for (let i = 0; i < 5; i++) game.embers.spawn(720 + i * 24, 380 + (i % 2) * 20, rng);
   game.banner = { text: 'WARNING', sub: 'SHATTERHEART APPROACHES', t: 2.6 };
 }
