@@ -57,6 +57,12 @@ export class Game {
     this.paused = false;
     this.dashSounded = false;
     this.frozen = false;
+    // Ember Glass: the last chain-shatter's kill count, and a short HUD
+    // flash so the chain reads even after the floating text fades.
+    this.lastChain = 0;
+    this.chainFlash = null;
+    // Every 6th ember picked up restores one bubble charge.
+    this.emberCount = 0;
     this.scale = 1;
     this.offsetX = 0;
     this.offsetY = 0;
@@ -129,6 +135,9 @@ export class Game {
     this.gate.integrity = this.gate.maxIntegrity;
     this.lanterns = this.makeLanterns();
     this.lanternsLit = 3;
+    this.lastChain = 0;
+    this.chainFlash = null;
+    this.emberCount = 0;
     this.player.reset(this.w / 2, this.h / 2 + 170);
     this.enemies = [];
     this.bullets.items = [];
@@ -181,6 +190,38 @@ export class Game {
     this.particles.burst(this.player.x, this.player.y, '#ff5d8f', 22, 240, 0.7, 3);
     this.audio.playerHit();
     if (this.player.hull <= 0) this.gameOver('Your lantern-skiff was shattered.');
+  }
+
+  // Ember Glass: shatter the bubble at `origin`. The blast hurts every
+  // enemy within SHATTER_R (bosses included — they are immune to the trap
+  // itself, not to the blast); any enemy the blast kills pops its own
+  // neighbours within the same radius, up to MAX_HOPS hops. Returns the
+  // number of enemies killed by this chain. Deaths are collected by the
+  // normal death pass in resolveCollisions, so scoring stays in one place.
+  shatterChain(origin, hop) {
+    const SHATTER_R = 90;
+    const MAX_HOPS = 3;
+    const SHATTER_DMG = 5;
+    let kills = 0;
+    const victims = [];
+    for (const v of this.enemies) {
+      if (v.dead || v.hp <= 0) continue;
+      if ((v.x - origin.x) ** 2 + (v.y - origin.y) ** 2 < SHATTER_R * SHATTER_R) victims.push(v);
+    }
+    const freshKills = [];
+    for (const v of victims) {
+      v.hp -= SHATTER_DMG;
+      v.flash = 0.12;
+      if (v.hp <= 0) { v.dead = true; kills++; freshKills.push(v); }
+    }
+    this.particles.ring(origin.x, origin.y, '#aee9ff', SHATTER_R);
+    this.particles.burst(origin.x, origin.y, '#aee9ff', 18, 240, 0.6, 3);
+    this.particles.addShake(6);
+    this.audio.enemyDie();
+    if (hop < MAX_HOPS) {
+      for (const k of freshKills) kills += this.shatterChain(k, hop + 1);
+    }
+    return kills;
   }
 
   killEnemy(e) {
@@ -314,10 +355,27 @@ export class Game {
         this.particles.trail(this.player.x + Math.cos(this.player.angle) * 22, this.player.y + Math.sin(this.player.angle) * 22, '#7df9ff', 3);
       }
     }
+    // Ember Glass: right-click / Shift blows a glass bubble (limited
+    // charges, recharged by embers). The bubble drifts and traps the
+    // first non-boss enemy it touches for 3 seconds.
+    if (input.rightDown || input.down('ShiftLeft')) {
+      const a = this.player.tryBubble();
+      if (a !== null) {
+        this.bullets.spawnBubble(
+          this.player.x + Math.cos(a) * 22, this.player.y + Math.sin(a) * 22, a,
+        );
+        this.audio.shoot();
+      }
+    }
     // Combo decay.
     if (this.comboTimer > 0) {
       this.comboTimer -= dt;
       if (this.comboTimer <= 0) { this.combo = 0; this.comboMult = 1; }
+    }
+    // Chain flash decay (HUD readout of the last shatter).
+    if (this.chainFlash) {
+      this.chainFlash.t -= dt;
+      if (this.chainFlash.t <= 0) this.chainFlash = null;
     }
     // Beacon lanterns: every flame gutters down on its own. Fly close to
     // a lantern to rekindle it. If all three go out, the dark creeps in
@@ -381,6 +439,27 @@ export class Game {
         if (b.hitSet && b.hitSet.has(e.id)) continue;
         const rr = b.r + e.r;
         if ((b.x - e.x) ** 2 + (b.y - e.y) ** 2 < rr * rr) {
+          if (b.kind === 'bubble') {
+            // A bubble traps the first non-boss, untrapped enemy it touches
+            // and is spent; it drifts straight through bosses and through
+            // enemies that are already trapped.
+            if (e.isBoss || e.trapped > 0) continue;
+            e.trapped = 3;
+            b.dead = true;
+            this.particles.ring(e.x, e.y, '#aee9ff', e.r + 14);
+            this.particles.floatText(e.x, e.y - e.r - 12, 'TRAPPED!', '#aee9ff', 14);
+            break;
+          }
+          // Shooting a trapped enemy shatters its bubble: the blast chains
+          // to neighbours, and any shatter kill chains further (max 3 hops).
+          if (e.trapped > 0) {
+            const n = this.shatterChain(e, 1);
+            this.lastChain = n;
+            if (n >= 2) {
+              this.chainFlash = { n, t: 2.0 };
+              this.particles.floatText(e.x, e.y - 34, `CHAIN x${n}`, '#aee9ff', 22);
+            }
+          }
           e.hp -= b.damage;
           e.flash = 0.12;
           this.shotsHit++;
@@ -466,6 +545,15 @@ export class Game {
           this.particles.floatText(p.x, p.y - 24, '+1 HULL', '#ff5d8f', 16);
         } else {
           this.score += 25 * this.comboMult;
+          // Ember Glass: every 6th ember restores one bubble charge.
+          this.emberCount++;
+          if (this.emberCount >= 6) {
+            this.emberCount = 0;
+            if (this.player.bubbleCharges < this.player.bubbleMax) {
+              this.player.bubbleCharges++;
+              this.particles.floatText(p.x, p.y - 40, '+1 EMBER GLASS', '#aee9ff', 14);
+            }
+          }
         }
         this.audio.pickup();
       }

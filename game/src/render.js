@@ -266,6 +266,12 @@ export function drawHUD(ctx, game) {
     ctx.fillStyle = 'rgba(255,209,102,0.35)';
     ctx.fillRect(20, 88, 90 * clamp(game.comboTimer / 2.5, 0, 1), 4);
   }
+  // Chain shatter readout: the last CHAIN xN, while it is still fresh.
+  if (game.chainFlash) {
+    ctx.fillStyle = '#aee9ff';
+    ctx.font = `800 20px ${FONT}`;
+    ctx.fillText(`CHAIN x${game.chainFlash.n}`, 20, 112);
+  }
   // Night, top-center.
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
@@ -305,6 +311,28 @@ export function drawHUD(ctx, game) {
   ctx.fillRect(w - 170, 80, 150, 7);
   ctx.fillStyle = gf > 0.5 ? '#ffb03d' : gf > 0.25 ? '#ffd166' : '#ff3d5e';
   ctx.fillRect(w - 170, 80, 150 * gf, 7);
+  // Ember Glass charges, above the dash bar: one glass bubble per charge.
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = `600 12px ${FONT}`;
+  ctx.fillText('EMBER GLASS [R-CLICK]', 20, game.h - 74);
+  for (let i = 0; i < game.player.bubbleMax; i++) {
+    const cx = 28 + i * 22, cy = game.h - 62;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 7, 0, TAU);
+    if (i < game.player.bubbleCharges) {
+      ctx.fillStyle = 'rgba(174,233,255,0.9)';
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx - 2, cy - 2, 2, 0, TAU);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
   // Dash + overdrive, bottom-left.
   ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
@@ -397,12 +425,14 @@ export function drawTitle(ctx, game, time) {
   ctx.fillText('The Shatter swarm comes to snuff the light. Tend the three beacon lanterns,', w / 2, 300 + bob);
   ctx.fillText('keep the Great Lantern burning through ten nights — and mind the snuff-moths.', w / 2, 326 + bob);
   // Controls.
-  panel(ctx, w / 2 - 330, 372, 660, 92);
+  panel(ctx, w / 2 - 330, 348, 660, 140);
   ctx.fillStyle = '#ffffff';
   ctx.font = `600 16px ${FONT}`;
-  ctx.fillText('WASD / ARROWS — fly      MOUSE — aim      HOLD CLICK — fire', w / 2, 400);
+  ctx.fillText('WASD / ARROWS — fly      MOUSE — aim      HOLD CLICK — fire', w / 2, 376);
+  ctx.fillText('SPACE — dash      E — overdrive      P — pause', w / 2, 400);
   ctx.fillText('FLY CLOSE TO A LANTERN — rekindle its flame', w / 2, 424);
-  ctx.fillText('SPACE / RIGHT-CLICK — dash      E — overdrive      P — pause', w / 2, 448);
+  ctx.fillText('RIGHT-CLICK / SHIFT — blow an ember-glass bubble (3 charges)', w / 2, 448);
+  ctx.fillText('TRAP A FOE, THEN SHOOT IT — THE SHATTER CHAINS TO ITS NEIGHBOURS', w / 2, 472);
   // Launch prompt, blinking.
   const blink = 0.65 + 0.35 * Math.sin(time * 4);
   ctx.globalAlpha = blink;

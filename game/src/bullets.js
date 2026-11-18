@@ -9,8 +9,19 @@ export class BulletPool {
     this.items.push({
       x, y,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      damage, pierce, color, friendly,
+      damage, pierce, color, friendly, kind: 'bullet',
       r: friendly ? 4 : 6, life: friendly ? 1.4 : 6, hitSet: pierce ? new Set() : null,
+    });
+  }
+  // Ember Glass: a slow glass bubble that drifts and traps the first
+  // non-boss enemy it touches. It carries no damage itself — the payoff
+  // comes from shooting the trapped enemy and shattering the bubble.
+  spawnBubble(x, y, angle) {
+    this.items.push({
+      x, y,
+      vx: Math.cos(angle) * 260, vy: Math.sin(angle) * 260,
+      damage: 0, pierce: false, color: '#aee9ff', friendly: true, kind: 'bubble',
+      r: 16, life: 4, hitSet: null,
     });
   }
   update(dt, world) {
@@ -25,6 +36,23 @@ export class BulletPool {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (const b of this.items) {
+      if (b.kind === 'bubble') {
+        // A blown-glass sphere: bright rim, faint fill, a hot glint.
+        ctx.strokeStyle = 'rgba(174,233,255,0.95)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, TAU);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(174,233,255,0.13)';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath();
+        ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.4, 3, 0, TAU);
+        ctx.fill();
+        continue;
+      }
       ctx.strokeStyle = b.color;
       ctx.lineWidth = b.friendly ? 3 : 4;
       ctx.beginPath();

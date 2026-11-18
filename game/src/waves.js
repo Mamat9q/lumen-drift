@@ -24,7 +24,7 @@ export const UPGRADES = [
   { id: 'rapid', name: 'BRASS CYCLER', desc: '+25% fire rate.', icon: '>>', apply: (p) => { p.fireRateBonus += 2; } },
   { id: 'hull', name: 'LANTERN PLATING', desc: 'Repair 1 hull and raise max hull by 1.', icon: '♥', apply: (p) => { p.maxHull += 1; p.hull = Math.min(p.maxHull, p.hull + 1); } },
   { id: 'dash', name: 'SWIFT CURRENT', desc: 'Dash recharges 40% faster.', icon: '»', apply: (p) => { p.dashMax *= 0.6; } },
-  { id: 'magnet', name: 'EMBER MAGNET', desc: 'Pull embers from much further away.', icon: '◎', apply: (p) => { p.magnet += 130; } },
+  { id: 'glass', name: 'EMBER GLASS', desc: '+1 bubble charge, refill all charges.', icon: '◯', apply: (p) => { p.bubbleMax += 1; p.bubbleCharges = p.bubbleMax; } },
 ];
 
 // Three distinct cards, never repeating a weapon the player already owns.

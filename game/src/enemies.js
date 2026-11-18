@@ -35,6 +35,10 @@ export class Enemy {
     this.angle = 0;
     this.spin = (rng() - 0.5) * 2;
     this.flash = 0;
+    // Ember Glass: seconds left trapped inside a glass bubble. While
+    // trapped the enemy floats, frozen — it cannot steer, shoot or snuff.
+    // Bosses are never trapped (see main.js); they only take shatter damage.
+    this.trapped = 0;
     this.shootTimer = 1 + rng() * 1.5;
     this.wobble = rng() * TAU;
     this.isBoss = false;
@@ -43,6 +47,14 @@ export class Enemy {
   update(dt, game) {
     this.flash = Math.max(0, this.flash - dt);
     this.wobble += dt * 3;
+    // Trapped in glass: float gently upward, frozen. No steering, no
+    // shooting, no snuffing — the bubble is the only thing moving it.
+    if (this.trapped > 0) {
+      this.trapped = Math.max(0, this.trapped - dt);
+      this.y -= 20 * dt;
+      this.angle += this.spin * dt * 0.3;
+      return;
+    }
     const gx = game.gate.x, gy = game.gate.y;
     const dp = Math.hypot(game.player.x - this.x, game.player.y - this.y);
     // A snuff-moth ignores the player and the gate: it flies for the
@@ -128,6 +140,25 @@ export class Enemy {
     ctx.arc(0, 0, r * 0.35, 0, TAU);
     ctx.fill();
     ctx.restore();
+    // The glass bubble around a trapped enemy: bright rim, faint fill, glint.
+    if (this.trapped > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(174,233,255,0.95)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r + 10, 0, TAU);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(174,233,255,0.12)';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r + 10, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.arc(this.x - (this.r + 10) * 0.35, this.y - (this.r + 10) * 0.4, 3, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
     if (this.hp < this.maxHp && !this.isBoss) {
       const w = this.r * 2;
       ctx.fillStyle = 'rgba(255,255,255,0.25)';

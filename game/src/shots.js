@@ -73,7 +73,9 @@ export function stageShot(game, name, seed = 7) {
   // action: boss fight on night 5 — SHATTERHEART mid-arena with its escort
   // swarm, radial bullet ring, overdrive active and combo at x8 — while a
   // snuff-moth dives on the north-east beacon lantern, its flame guttering.
-  // This is the game's signature moment, so it is the cover action shot.
+  // The signature moment is now the Ember Glass chain: a trapped splitter
+  // in a glass bubble with three motes inside its shatter radius, the
+  // rings still expanding and CHAIN x3 on screen. This is the cover shot.
   game.state = 'playing';
   game.wave = 5;
   game.score = 21480;
@@ -92,6 +94,10 @@ export function stageShot(game, name, seed = 7) {
   game.player.overdrive = 0;
   game.player.overdriveActive = 4.2;
   game.player.weapon = 'spread';
+  game.player.bubbleCharges = 2;
+  game.player.bubbleMax = 3;
+  game.lastChain = 3;
+  game.chainFlash = { n: 3, t: 2.0 };
   game.gate.integrity = 74;
   game.lanterns[0].flame = 100;
   game.lanterns[1].flame = 28;
@@ -108,7 +114,7 @@ export function stageShot(game, name, seed = 7) {
   game.particles.burst(1070, 150, '#8a7cff', 18, 170, 0.8, 3);
   game.particles.floatText(1070, 118, 'SNUFF-MOTH!', '#8a7cff', 14);
   const spots = [
-    ['dart', 830, 210], ['mote', 860, 390], ['mote', 1040, 210],
+    ['dart', 830, 210], ['mote', 1040, 210],
     ['spitter', 1080, 430], ['dart', 780, 320], ['splitter', 1010, 480],
     ['mote', 700, 260], ['bulwark', 1120, 330], ['dart', 900, 540],
     ['mote', 620, 420], ['spitter', 1060, 140], ['dart', 1180, 520],
@@ -118,6 +124,26 @@ export function stageShot(game, name, seed = 7) {
     e.angle = rand(rng, 0, 6.28);
     game.enemies.push(e);
   }
+  // Ember Glass chain, frozen mid-shatter: a splitter trapped in a glass
+  // bubble at (880, 380) with three motes inside its 90px shatter radius,
+  // all flashed white from the blast, rings expanding, CHAIN x3 on screen.
+  // (The boss at (950, 300) sits just outside the blast — it takes
+  // shatter damage in play, but it is never trapped and never chain-killed.)
+  const trapped = new Enemy('splitter', 880, 380, rng);
+  trapped.trapped = 3;
+  trapped.flash = 0.12;
+  game.enemies.push(trapped);
+  for (const [x, y] of [[850, 335], [920, 420], [905, 330]]) {
+    const m = new Enemy('mote', x, y, rng);
+    m.angle = rand(rng, 0, 6.28);
+    m.flash = 0.12;
+    game.enemies.push(m);
+  }
+  // A second bubble still drifting in from the ship, for the alternate fire.
+  game.bullets.spawnBubble(700, 430, -0.3);
+  game.particles.ring(880, 380, '#aee9ff', 90);
+  game.particles.burst(880, 380, '#aee9ff', 26, 240, 0.8, 3);
+  game.particles.floatText(880, 330, 'CHAIN x3', '#aee9ff', 24);
   // The boss's radial burst, frozen mid-flight.
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * 6.28318 + 0.6;

@@ -30,6 +30,11 @@ export class Player {
     this.magnet = 90;
     this.overdrive = 0; // 0..100, full at 100
     this.overdriveActive = 0;
+    // Ember Glass: bubble charges. Start with 3; embers refill them
+    // (every 6th ember picked up restores one charge, see main.js).
+    this.bubbleCharges = 3;
+    this.bubbleMax = 3;
+    this.bubbleCooldown = 0;
     this.thrusting = false;
   }
 
@@ -42,6 +47,8 @@ export class Player {
     this.damageBonus = 0; this.fireRateBonus = 0;
     this.dashCooldown = 0; this.invuln = 0;
     this.overdrive = 0; this.overdriveActive = 0;
+    this.bubbleCharges = this.bubbleMax;
+    this.bubbleCooldown = 0;
   }
 
   update(dt, input, aimX, aimY, world) {
@@ -70,7 +77,10 @@ export class Player {
     this.dashTimer = Math.max(0, this.dashTimer - dt);
     this.invuln = Math.max(0, this.invuln - dt);
     this.overdriveActive = Math.max(0, this.overdriveActive - dt);
-    if ((input.wasPressed('Space') || input.wasPressed('ShiftLeft') || input.rightDown) && this.dashCooldown <= 0) {
+    this.bubbleCooldown = Math.max(0, this.bubbleCooldown - dt);
+    // Dash is Space only now: right-click / Shift belong to the
+    // ember-glass bubble, so one input can never fire both at once.
+    if (input.wasPressed('Space') && this.dashCooldown <= 0) {
       this.startDash();
     }
   }
@@ -82,6 +92,15 @@ export class Player {
     const dx = Math.cos(this.angle), dy = Math.sin(this.angle);
     this.vx = dx * 900;
     this.vy = dy * 900;
+  }
+
+  // Ember Glass: spend one charge to blow a bubble, or null while cooling
+  // down / out of charges. The bubble itself is spawned by the Game.
+  tryBubble() {
+    if (this.bubbleCooldown > 0 || this.bubbleCharges <= 0) return null;
+    this.bubbleCooldown = 0.7;
+    this.bubbleCharges--;
+    return this.angle;
   }
 
   // Returns an array of bullet specs to spawn (empty while cooling down).
