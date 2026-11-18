@@ -186,6 +186,43 @@ export class Boss extends Enemy {
     this.summonTimer = 5;
     this.chargeTimer = 6;
     this.charging = 0;
+    // Brass Depths: breakable brass armour plates. SHATTERHEART wears 3,
+    // VOID MAW wears 5; each plate soaks 40 damage before the hull can be
+    // hurt at all. Every plate that cracks makes the boss faster and its
+    // radial bursts and summons come quicker — the fight escalates as the
+    // armour comes off.
+    this.plates = kind === 'voidmaw' ? 5 : 3;
+    this.plateMax = 40;
+    this.plateHp = this.plateMax;
+    this.platesBroken = 0;
+    this.burstBase = kind === 'voidmaw' ? 1.7 : 2.4;
+    this.summonBase = 6;
+  }
+
+  // Route all damage through the plates first. Returns true when a plate
+  // broke on this hit. Hull damage only starts once every plate is gone.
+  takeHit(dmg, game) {
+    if (this.plates > 0) {
+      this.plateHp -= dmg;
+      this.flash = 0.12;
+      if (this.plateHp > 0) return false;
+      this.plates--;
+      this.platesBroken++;
+      this.plateHp = this.plateMax;
+      this.speed += 6;
+      this.burstBase *= 0.85;
+      this.summonBase *= 0.85;
+      this.summonTimer = Math.min(this.summonTimer, this.summonBase);
+      game.particles.ring(this.x, this.y, '#ffd166', 120);
+      game.particles.burst(this.x, this.y, '#ffd166', 26, 260, 0.7, 3);
+      game.particles.addShake(8);
+      game.particles.floatText(this.x, this.y - 56, 'ARMOUR CRACKED!', '#ffd166', 18);
+      game.audio.enemyDie();
+      return true;
+    }
+    this.hp -= dmg;
+    this.flash = 0.12;
+    return false;
   }
 
   update(dt, game) {
@@ -203,7 +240,7 @@ export class Boss extends Enemy {
     this.y += Math.sin(a) * this.speed * dt;
     this.burstTimer -= dt;
     if (this.burstTimer <= 0) {
-      this.burstTimer = this.bossKind === 'voidmaw' ? 1.7 : 2.4;
+      this.burstTimer = this.burstBase;
       const n = this.bossKind === 'voidmaw' ? 12 : 8;
       for (let i = 0; i < n; i++) {
         const aa = (i / n) * TAU + this.angle;
@@ -212,7 +249,7 @@ export class Boss extends Enemy {
     }
     this.summonTimer -= dt;
     if (this.summonTimer <= 0) {
-      this.summonTimer = 6;
+      this.summonTimer = this.summonBase;
       for (let i = 0; i < 3; i++) game.spawnEnemy('mote', this.x + (Math.random() - 0.5) * 80, this.y + (Math.random() - 0.5) * 80);
     }
     if (this.bossKind === 'voidmaw') {
@@ -256,6 +293,18 @@ export class Boss extends Enemy {
     ctx.beginPath();
     ctx.arc(0, 0, this.r * 0.16, 0, TAU);
     ctx.fill();
+    // Brass armour plates still worn: gold ticks around the rim, one per
+    // plate left. As plates crack off, the ring thins — the boss's state
+    // reads from its silhouette alone.
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 5;
+    const total = this.bossKind === 'voidmaw' ? 5 : 3;
+    for (let i = 0; i < this.plates; i++) {
+      const a0 = (i / total) * TAU - 0.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.r + 8, a0, a0 + 0.7);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 }

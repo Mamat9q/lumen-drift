@@ -2,13 +2,15 @@
 [![rank](https://make.fun/badge/best-game-01/Mamat9q/lumen-drift/rank.svg)](https://make.fun/bounty/best-game-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
 [![reward](https://make.fun/badge/best-game-01/Mamat9q/lumen-drift/reward.svg)](https://make.fun/bounty/best-game-01?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
 
-# LUMEN DRIFT — Lanternkeeper of the Drift Gate
+# LUMEN DRIFT — Lanternkeeper of the Drift Gate · Brass Depths
 
 An original lantern-keeping arcade game for make.fun's **best-game-01**
 bounty ("Make the best game", $1,000). You are the Lanternkeeper of the
 Drift Gate: fly your lantern-skiff through ten nights of the Shatter swarm,
 tend the three beacon lanterns, and keep the Great Lantern burning — if
-every flame goes out, the dark takes the gate.
+every flame goes out, the dark takes the gate. The deeper the descent, the
+harder the table fights back: bosses wear breakable brass armour, drift
+mines seed the arena, and the deep pays its debts in relics.
 
 ## How to play
 
@@ -41,6 +43,21 @@ no files outside `game/`.
   back; splitters break into three cinders; bulwarks soak damage; the
   bosses **SHATTERHEART** (night 5) and **VOID MAW** (night 10) fire radial
   bursts, summon cinders, and the Void Maw charges.
+- **Crack the brass armour.** The bosses wear breakable plates —
+  **SHATTERHEART** 3, **VOID MAW** 5, 40 damage each — and no hull damage
+  lands until every plate is off. Each cracked plate makes the boss faster
+  and its radial bursts and summons come quicker, so the fight escalates
+  as the armour comes off. Plate pips under the boss bar show the count.
+- **Dredge up relics.** Bosses always drop a relic, bulwarks sometimes do
+  (30%). Twelve named keepsakes — Brass Wick, Clockwork Heart, Deep
+  Current, Magnet Coil, Ember Lode, Overdrive Coil, Lantern Oil, Shatter
+  Lens, Twin Flame, Iron Plating, Keen Sight, Gilded Ember — each a
+  permanent run-long effect. The HUD shows the relics you own.
+- **Mind the drift mines.** The arena fights back: one mine per two nights
+  (up to five) seeds the floor. Drift too close and one goes off in your
+  face; shoot one and its blast shreds the swarm for you.
+- **Read the dive chart.** Ten nights as one descent, bosses at nights 5
+  and 10, on the title screen, between nights, and at victory.
 - **Score with combos.** Kills chain a combo multiplier up to x8. Enemies
   drop embers worth points (and rare hull repairs). Kills fill the Overdrive
   meter.
@@ -68,13 +85,15 @@ no files outside `game/`.
 
 - `game/index.html` — canvas shell, loads the game
 - `game/src/main.js` — Game state machine, loop, collisions, night director,
-  beacon-lantern tending
+  beacon-lantern tending, drift mines, relic drops
 - `game/src/player.js` — the lantern-skiff: thrust, aim, dash, lamp weapons
 - `game/src/enemies.js` — swarm kinds, AI, snuff-moths, and the two bosses
+  with breakable brass armour plates
 - `game/src/bullets.js` — projectile pools and ember pickups
+- `game/src/relics.js` — the twelve-relic set and the relic pickup pool
 - `game/src/waves.js` — the ten-night table and keeper's craft cards
 - `game/src/render.js` — background, Great Lantern, beacon lanterns, HUD,
-  and all screens
+  dive chart, drift mines, and all screens
 - `game/src/particles.js` — explosions, rings, floating text, starfield
 - `game/src/audio.js` — synthesized SFX and music
 - `game/src/input.js` — keyboard + mouse
@@ -85,11 +104,12 @@ no files outside `game/`.
 
 ## Screenshots
 
-`1-title.jpg` title screen with all three beacon lanterns burning,
-`2-action.jpg` the night-5 SHATTERHEART boss fight with a snuff-moth diving
-on a guttering lantern, `3-victory.jpg` the win screen, `4-gameover.jpg`
-the loss screen with every lantern cold. All four are real renders of the
-game's own code in a browser (see `shots.json`).
+`1-title.jpg` title screen with all three beacon lanterns burning and the
+ten-night dive chart, `2-action.jpg` the night-5 SHATTERHEART boss fight —
+one brass plate cracked, a relic dropped, a drift mine pulsing — with a
+snuff-moth diving on a guttering lantern, `3-victory.jpg` the win screen,
+`4-gameover.jpg` the loss screen with every lantern cold. All four are real
+renders of the game's own code in a browser (see `shots.json`).
 
 ## License
 

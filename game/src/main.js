@@ -8,6 +8,7 @@ import { ParticleSystem, Starfield } from './particles.js';
 import { Player } from './player.js';
 import { Enemy, Boss, edgeSpawn } from './enemies.js';
 import { BulletPool, EmberPool } from './bullets.js';
+import { RelicPool } from './relics.js';
 import { WAVE_TABLE, TOTAL_WAVES, pickUpgrades } from './waves.js';
 import * as render from './render.js';
 import { stageShot } from './shots.js';
@@ -30,6 +31,17 @@ export class Game {
     this.enemyBullets = new BulletPool();
     this.embers = new EmberPool();
     this.enemies = [];
+    // Brass Depths: the relic pool (dropped keepsakes, run-long effects)
+    // and the drift mines — the arena fighting back, more of them the
+    // deeper the night. shatterR/shatterHops/lanternGutterMul/emberBonus
+    // are relic-modified game stats, reset every run.
+    this.relics = new RelicPool();
+    this.relicsOwned = [];
+    this.hazards = [];
+    this.shatterR = 90;
+    this.shatterHops = 3;
+    this.lanternGutterMul = 1;
+    this.emberBonus = 0;
     this.gate = { x: this.w / 2, y: this.h / 2, r: 52, integrity: 100, maxIntegrity: 100 };
     // The three beacon lanterns the keeper tends. A flame gutters down on
     // its own; fly close to rekindle it. If all three go out, the dark
@@ -138,6 +150,13 @@ export class Game {
     this.lastChain = 0;
     this.chainFlash = null;
     this.emberCount = 0;
+    this.relics.items = [];
+    this.relicsOwned = [];
+    this.hazards = [];
+    this.shatterR = 90;
+    this.shatterHops = 3;
+    this.lanternGutterMul = 1;
+    this.emberBonus = 0;
     this.player.reset(this.w / 2, this.h / 2 + 170);
     this.enemies = [];
     this.bullets.items = [];
@@ -156,6 +175,7 @@ export class Game {
     this.wave = n;
     const def = WAVE_TABLE[n - 1];
     this.spawnBag = [];
+    this.hazards = [];
     for (const [kind, count] of Object.entries(def)) {
       if (kind === 'boss') continue;
       for (let i = 0; i < count; i++) this.spawnBag.push(kind);
@@ -172,6 +192,52 @@ export class Game {
     } else {
       this.banner = { text: `NIGHT ${n}`, sub: n === TOTAL_WAVES ? 'FINAL NIGHT — HOLD THE LIGHT' : 'HOSTILES INBOUND — MIND THE LANTERNS', t: 2.2 };
     }
+    // Brass Depths: the table fights back. Drift mines seed the arena —
+    // one per two nights, up to five — placed clear of the gate, the
+    // lanterns and the keeper's start, so every night the floor itself
+    // is a little more hostile.
+    this.spawnMines(Math.min(5, Math.floor(n / 2)));
+  }
+
+  spawnMines(count) {
+    for (let i = 0; i < count; i++) {
+      let x = 0, y = 0, ok = false;
+      for (let tries = 0; tries < 20 && !ok; tries++) {
+        x = 60 + Math.random() * (this.w - 120);
+        y = 60 + Math.random() * (this.h - 120);
+        ok = Math.hypot(x - this.gate.x, y - this.gate.y) > 200
+          && Math.hypot(x - this.player.x, y - this.player.y) > 220
+          && this.lanterns.every((L) => Math.hypot(x - L.x, y - L.y) > 70)
+          && this.hazards.every((m) => Math.hypot(x - m.x, y - m.y) > 90);
+      }
+      if (ok) this.hazards.push({ x, y, r: 16, t: Math.random() * 6.28, dead: false });
+    }
+  }
+
+  // A drift mine goes off: a blast that hurts the keeper if they are too
+  // close and shreds any enemy inside 90px. Shooting a mine is the safe
+  // way to use it — the blast is the arena fighting back for you.
+  detonateMine(m) {
+    m.dead = true;
+    this.particles.burst(m.x, m.y, '#ff8a3d', 30, 300, 0.8, 4);
+    this.particles.ring(m.x, m.y, '#ff8a3d', 90);
+    this.particles.addShake(10);
+    this.audio.enemyDie();
+    const p = this.player;
+    if (Math.hypot(p.x - m.x, p.y - m.y) < 46) this.damagePlayer(1);
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      if (Math.hypot(e.x - m.x, e.y - m.y) < 90) this.applyDamage(e, 3);
+    }
+    this.hazards = this.hazards.filter((h) => !h.dead);
+  }
+
+  // One damage route for everything that can hurt an enemy: bosses soak
+  // hits on their brass plates first (see enemies.js Boss.takeHit),
+  // everyone else takes hull damage directly.
+  applyDamage(e, dmg) {
+    if (e.isBoss) e.takeHit(dmg, this);
+    else { e.hp -= dmg; e.flash = 0.12; }
   }
 
   spawnEnemy(kind, x, y) {
@@ -185,7 +251,7 @@ export class Game {
   damagePlayer(amount) {
     if (this.player.invuln > 0) return;
     this.player.hull -= amount;
-    this.player.invuln = 1.2;
+    this.player.invuln = 1.2 + this.player.invulnBonus;
     this.particles.addShake(12);
     this.particles.burst(this.player.x, this.player.y, '#ff5d8f', 22, 240, 0.7, 3);
     this.audio.playerHit();
@@ -199,8 +265,8 @@ export class Game {
   // number of enemies killed by this chain. Deaths are collected by the
   // normal death pass in resolveCollisions, so scoring stays in one place.
   shatterChain(origin, hop) {
-    const SHATTER_R = 90;
-    const MAX_HOPS = 3;
+    const SHATTER_R = this.shatterR;
+    const MAX_HOPS = this.shatterHops;
     const SHATTER_DMG = 5;
     let kills = 0;
     const victims = [];
@@ -210,8 +276,7 @@ export class Game {
     }
     const freshKills = [];
     for (const v of victims) {
-      v.hp -= SHATTER_DMG;
-      v.flash = 0.12;
+      this.applyDamage(v, SHATTER_DMG);
       if (v.hp <= 0) { v.dead = true; kills++; freshKills.push(v); }
     }
     this.particles.ring(origin.x, origin.y, '#aee9ff', SHATTER_R);
@@ -228,13 +293,17 @@ export class Game {
     this.kills++;
     this.score += e.score * this.comboMult;
     this.combo++;
-    this.comboTimer = 2.5;
+    this.comboTimer = 2.5 + this.player.comboBonus;
     this.comboMult = Math.min(8, 1 + Math.floor(this.combo / 4));
-    this.player.overdrive = Math.min(100, this.player.overdrive + (e.isBoss ? 25 : 4));
+    this.player.overdrive = Math.min(100, this.player.overdrive + (e.isBoss ? 25 : 4) * this.player.overdriveMul);
     this.particles.burst(e.x, e.y, e.color, e.isBoss ? 70 : 22, e.isBoss ? 380 : 230, 0.8, 3);
     if (e.isBoss) {
       this.particles.ring(e.x, e.y, '#ffd166', 180);
       this.particles.addShake(16);
+      // A boss always drops a relic — the deep pays for the climb.
+      this.relics.spawn(e.x, e.y, Math.random, this.relicsOwned);
+    } else if (e.kind === 'bulwark' && Math.random() < 0.3) {
+      this.relics.spawn(e.x, e.y, Math.random, this.relicsOwned);
     }
     this.particles.floatText(e.x, e.y - 10, `+${e.score * this.comboMult}`, '#ffd166', 15);
     this.embers.spawn(e.x, e.y, Math.random);
@@ -382,7 +451,7 @@ export class Game {
     // and the gate itself starts to fade.
     let lit = 0;
     for (const L of this.lanterns) {
-      L.flame = Math.max(0, L.flame - 1.0 * dt);
+      L.flame = Math.max(0, L.flame - 1.0 * this.lanternGutterMul * dt);
       const d = Math.hypot(this.player.x - L.x, this.player.y - L.y);
       if (d < 80) {
         L.flame = Math.min(100, L.flame + 45 * dt);
@@ -415,6 +484,15 @@ export class Game {
     this.bullets.update(dt, this);
     this.enemyBullets.update(dt, this);
     this.embers.update(dt, this.player, this);
+    this.relics.update(dt, this.player, this);
+    // Drift mines pulse; drift too close and one goes off in your face.
+    for (const m of this.hazards) {
+      m.t += dt;
+      if (Math.hypot(this.player.x - m.x, this.player.y - m.y) < 42) {
+        this.detonateMine(m);
+        if (this.state !== 'playing') return;
+      }
+    }
     this.resolveCollisions();
     // Wave clear.
     if (this.state === 'playing' && this.spawnBag.length === 0 && this.enemies.length === 0) {
@@ -431,6 +509,22 @@ export class Game {
 
   resolveCollisions() {
     const p = this.player;
+    // Player bullets vs drift mines: shooting a mine sets it off — the
+    // blast shreds enemies nearby, so a mine is a weapon if you spot it.
+    for (const b of this.bullets.items) {
+      if (b.dead || b.kind === 'bubble') continue;
+      for (const m of this.hazards) {
+        if (m.dead) continue;
+        const rr = b.r + m.r;
+        if ((b.x - m.x) ** 2 + (b.y - m.y) ** 2 < rr * rr) {
+          b.dead = true;
+          this.detonateMine(m);
+          break;
+        }
+      }
+    }
+    this.bullets.items = this.bullets.items.filter((b) => !b.dead);
+    if (this.state !== 'playing') return;
     // Player bullets vs enemies.
     for (const b of this.bullets.items) {
       if (b.dead) continue;
@@ -460,8 +554,7 @@ export class Game {
               this.particles.floatText(e.x, e.y - 34, `CHAIN x${n}`, '#aee9ff', 22);
             }
           }
-          e.hp -= b.damage;
-          e.flash = 0.12;
+          this.applyDamage(e, b.damage);
           this.shotsHit++;
           this.particles.burst(b.x, b.y, b.color, 3, 90, 0.25, 2);
           if (b.hitSet) b.hitSet.add(e.id);
@@ -486,7 +579,7 @@ export class Game {
       if (e.dead) continue;
       const dp = Math.hypot(p.x - e.x, p.y - e.y);
       if (dp < e.r + p.r - 2) {
-        e.hp -= 3;
+        this.applyDamage(e, 3);
         this.damagePlayer(1);
         if (this.state !== 'playing') return;
       }
@@ -544,7 +637,7 @@ export class Game {
           p.hull = Math.min(p.maxHull, p.hull + 1);
           this.particles.floatText(p.x, p.y - 24, '+1 HULL', '#ff5d8f', 16);
         } else {
-          this.score += 25 * this.comboMult;
+          this.score += (25 + this.emberBonus) * this.comboMult;
           // Ember Glass: every 6th ember restores one bubble charge.
           this.emberCount++;
           if (this.emberCount >= 6) {

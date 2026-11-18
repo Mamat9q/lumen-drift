@@ -223,13 +223,115 @@ export function drawWorld(ctx, game, time, showGate = true) {
   drawBackground(ctx, game, time);
   if (showGate) drawGate(ctx, game, time);
   drawLanterns(ctx, game, time);
+  drawHazards(ctx, game, time);
   game.embers.draw(ctx, time);
+  game.relics.draw(ctx, time);
   for (const e of game.enemies) e.draw(ctx);
   // On the game-over screen the ship is wreckage: only its explosion shows.
   if (game.state !== 'gameover') game.player.draw(ctx, time);
   game.bullets.draw(ctx);
   game.enemyBullets.draw(ctx);
   game.particles.draw(ctx);
+}
+
+// Drift mines: spiked brass orbs that pulse red-gold, brighter as they
+// arm. The arena fighting back — shoot one to turn it on the swarm.
+export function drawHazards(ctx, game, time) {
+  for (const m of game.hazards) {
+    const pulse = 0.6 + 0.4 * Math.sin(m.t * 4);
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 34);
+    glow.addColorStop(0, `rgba(255,138,61,${0.30 * pulse})`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 34, 0, TAU);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // Eight spikes around a brass core.
+    ctx.fillStyle = '#8a6d3b';
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + time * 0.4;
+      const px = Math.cos(a) * (m.r + 7), py = Math.sin(a) * (m.r + 7);
+      const qx = Math.cos(a + 0.25) * m.r * 0.7, qy = Math.sin(a + 0.25) * m.r * 0.7;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      ctx.lineTo(qx, qy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = `rgba(255,61,94,${0.55 + 0.45 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// The dive chart: ten nights as one descent, bosses at nights 5 and 10.
+// Cleared nights burn gold, the current night is ringed bright, the deep
+// ahead stays dim. Shown on the title, between nights, and at victory.
+export function drawDiveChart(ctx, game, cx, y) {
+  const w = 520;
+  const x0 = cx - w / 2;
+  const gap = w / 9;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = `600 11px ${FONT}`;
+  ctx.fillText('THE DESCENT — TEN NIGHTS DOWN', cx, y);
+  // The line the descent follows.
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x0, y + 22);
+  ctx.lineTo(x0 + w, y + 22);
+  ctx.stroke();
+  for (let i = 1; i <= 10; i++) {
+    const x = x0 + (i - 1) * gap;
+    const cy = y + 22;
+    const isBoss = i === 5 || i === 10;
+    const cleared = game.state === 'victory' || i < game.wave;
+    const current = game.state !== 'victory' && i === game.wave;
+    ctx.save();
+    if (cleared) {
+      ctx.fillStyle = '#ffd166';
+      ctx.strokeStyle = '#ffd166';
+    } else if (current) {
+      ctx.fillStyle = '#19e3ff';
+      ctx.strokeStyle = '#19e3ff';
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.14)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    }
+    ctx.lineWidth = current ? 3 : 2;
+    ctx.beginPath();
+    if (isBoss) {
+      // Boss nights are diamonds, larger than the rest.
+      ctx.moveTo(x, cy - 13);
+      ctx.lineTo(x + 13, cy);
+      ctx.lineTo(x, cy + 13);
+      ctx.lineTo(x - 13, cy);
+      ctx.closePath();
+    } else {
+      ctx.arc(x, cy, current ? 10 : 8, 0, TAU);
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = cleared || current ? '#04050d' : 'rgba(255,255,255,0.6)';
+    ctx.font = `800 ${isBoss ? 11 : 10}px ${FONT}`;
+    ctx.fillText(isBoss ? 'B' : `${i}`, x, cy + 3.5);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `600 10px ${FONT}`;
+    ctx.fillText(isBoss ? (i === 5 ? 'SHATTERHEART' : 'VOID MAW') : `N${i}`, x, cy + 28);
+    ctx.restore();
+  }
+  ctx.restore();
 }
 
 function heart(ctx, x, y, size, filled) {
@@ -271,6 +373,27 @@ export function drawHUD(ctx, game) {
     ctx.fillStyle = '#aee9ff';
     ctx.font = `800 20px ${FONT}`;
     ctx.fillText(`CHAIN x${game.chainFlash.n}`, 20, 112);
+  }
+  // Relics owned this run: gold initials under the combo readout.
+  if (game.relicsOwned.length > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = `600 12px ${FONT}`;
+    ctx.fillText(`RELICS ${game.relicsOwned.length}/12`, 20, 132);
+    game.relicsOwned.forEach((r, i) => {
+      const cx = 28 + i * 20, cy = 146;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, TAU);
+      ctx.fillStyle = 'rgba(255,209,102,0.25)';
+      ctx.fill();
+      ctx.strokeStyle = '#ffd166';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#fff3c4';
+      ctx.font = `800 10px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.fillText(r.icon, cx, cy + 3.5);
+    });
+    ctx.textAlign = 'left';
   }
   // Night, top-center.
   ctx.textAlign = 'center';
@@ -366,6 +489,23 @@ export function drawHUD(ctx, game) {
     ctx.fillStyle = '#ff5d8f';
     ctx.font = `800 15px ${FONT}`;
     ctx.fillText(boss.bossKind === 'voidmaw' ? 'VOID MAW' : 'SHATTERHEART', w / 2, by - 6);
+    // Brass armour plates still worn: a row of gold ticks under the boss
+    // bar; cracked plates show as hollow outlines, so the fight's
+    // progress reads instantly.
+    const total = boss.bossKind === 'voidmaw' ? 5 : 3;
+    for (let i = 0; i < total; i++) {
+      const px = w / 2 - ((total - 1) * 16) / 2 + i * 16;
+      ctx.beginPath();
+      ctx.arc(px, by + 22, 5, 0, TAU);
+      if (i < boss.plates) {
+        ctx.fillStyle = '#ffd166';
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = 'rgba(255,209,102,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     ctx.fillRect(bx, by, bw, 9);
     ctx.fillStyle = '#ff2e63';
@@ -419,7 +559,7 @@ export function drawTitle(ctx, game, time) {
   ctx.fillText('LUMEN DRIFT', w / 2, 218 + bob);
   ctx.fillStyle = '#ff5d8f';
   ctx.font = `700 22px ${FONT}`;
-  ctx.fillText('— LANTERNKEEPER OF THE DRIFT GATE —', w / 2, 258 + bob);
+  ctx.fillText('— LANTERNKEEPER OF THE DRIFT GATE · BRASS DEPTHS —', w / 2, 258 + bob);
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.font = `400 17px ${FONT}`;
   ctx.fillText('The Shatter swarm comes to snuff the light. Tend the three beacon lanterns,', w / 2, 300 + bob);
@@ -433,6 +573,9 @@ export function drawTitle(ctx, game, time) {
   ctx.fillText('FLY CLOSE TO A LANTERN — rekindle its flame', w / 2, 424);
   ctx.fillText('RIGHT-CLICK / SHIFT — blow an ember-glass bubble (3 charges)', w / 2, 448);
   ctx.fillText('TRAP A FOE, THEN SHOOT IT — THE SHATTER CHAINS TO ITS NEIGHBOURS', w / 2, 472);
+  // The dive chart: ten nights, bosses at 5 and 10 — the whole descent
+  // visible before the first lantern is lit.
+  drawDiveChart(ctx, game, w / 2, 540);
   // Launch prompt, blinking.
   const blink = 0.65 + 0.35 * Math.sin(time * 4);
   ctx.globalAlpha = blink;
@@ -486,6 +629,8 @@ export function drawUpgrade(ctx, game) {
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.font = `400 15px ${FONT}`;
   ctx.fillText(`Next: NIGHT ${game.wave + 1} of 10`, w / 2, y0 + ch + 46);
+  // The dive chart under the cards: where the run stands in the descent.
+  drawDiveChart(ctx, game, w / 2, y0 + ch + 66);
   ctx.restore();
 }
 
@@ -542,6 +687,7 @@ export function drawVictory(ctx, game) {
   ctx.font = `400 19px ${FONT}`;
   ctx.fillText('All ten nights held. Every lantern still lit.', w / 2, 252);
   drawStats(ctx, game, 300);
+  drawDiveChart(ctx, game, w / 2, 440);
   const blink = 0.65 + 0.35 * Math.sin(game.time * 4);
   ctx.globalAlpha = blink;
   ctx.fillStyle = '#ffd166';
@@ -566,7 +712,7 @@ function drawStats(ctx, game, y0) {
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.font = `600 17px ${FONT}`;
   ctx.fillText(
-    `NIGHT ${game.wave}  •  ${game.kills} KILLS  •  ${acc}% ACCURACY  •  ${mins}:${secs}`,
+    `NIGHT ${game.wave}  •  ${game.kills} KILLS  •  ${acc}% ACCURACY  •  ${mins}:${secs}  •  ${game.relicsOwned.length} RELICS`,
     w / 2, y0 + 96,
   );
 }

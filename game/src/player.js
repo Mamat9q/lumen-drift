@@ -35,6 +35,14 @@ export class Player {
     this.bubbleCharges = 3;
     this.bubbleMax = 3;
     this.bubbleCooldown = 0;
+    // Brass Depths: relic-driven stats, all 1.0 / 0 by default and raised
+    // by relics only (see relics.js). speedMul scales thrust speed,
+    // overdriveMul scales meter gain, invulnBonus extends post-hit
+    // invulnerability, comboBonus lengthens the combo window.
+    this.speedMul = 1;
+    this.overdriveMul = 1;
+    this.invulnBonus = 0;
+    this.comboBonus = 0;
     this.thrusting = false;
   }
 
@@ -42,13 +50,20 @@ export class Player {
 
   reset(x, y) {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0;
+    // Base stats are restored every run: hull, bubble and magnet caps
+    // raised by upgrade cards or relics belong to one run only.
+    this.maxHull = 3;
     this.hull = this.maxHull;
+    this.bubbleMax = 3;
+    this.magnet = 90;
     this.weapon = 'pulse';
     this.damageBonus = 0; this.fireRateBonus = 0;
     this.dashCooldown = 0; this.invuln = 0;
     this.overdrive = 0; this.overdriveActive = 0;
     this.bubbleCharges = this.bubbleMax;
     this.bubbleCooldown = 0;
+    this.speedMul = 1; this.overdriveMul = 1;
+    this.invulnBonus = 0; this.comboBonus = 0;
   }
 
   update(dt, input, aimX, aimY, world) {
@@ -62,7 +77,7 @@ export class Player {
     if (len > 0) { ax /= len; ay /= len; }
     this.thrusting = len > 0;
     const dashing = this.dashTimer > 0;
-    const speed = dashing ? 900 : (this.overdriveActive > 0 ? 520 : 430);
+    const speed = (dashing ? 900 : (this.overdriveActive > 0 ? 520 : 430)) * this.speedMul;
     this.vx += ax * accel * dt;
     this.vy += ay * accel * dt;
     const v = Math.hypot(this.vx, this.vy);

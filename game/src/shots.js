@@ -5,6 +5,7 @@
 import { mulberry32, rand } from './utils.js';
 import { Enemy, Boss } from './enemies.js';
 import { Starfield } from './particles.js';
+import { RELICS } from './relics.js';
 
 export function stageShot(game, name, seed = 7) {
   const rng = mulberry32(seed);
@@ -40,7 +41,9 @@ export function stageShot(game, name, seed = 7) {
     game.runTime = 482;
     game.player.hull = 2;
     game.gate.integrity = 92;
-    // Ten nights held: every beacon lantern still burns, gate blazing.
+    // Ten nights held: every beacon lantern still burns, gate blazing —
+    // and three relics dredged up from the deep along the way.
+    game.relicsOwned = [RELICS[0], RELICS[4], RELICS[10]];
     game.lanterns[0].flame = 100;
     game.lanterns[1].flame = 100;
     game.lanterns[2].flame = 100;
@@ -102,9 +105,15 @@ export function stageShot(game, name, seed = 7) {
   game.lanterns[0].flame = 100;
   game.lanterns[1].flame = 28;
   game.lanterns[2].flame = 100;
-  // The boss, at 60% HP so the boss bar reads mid-fight.
+  // The boss, at 60% HP so the boss bar reads mid-fight — and one brass
+  // plate already cracked off, so the plate pips read 2 of 3 and the
+  // burst rate is visibly up.
   const boss = new Boss('shatterheart', 950, 300, rng);
   boss.hp = 78;
+  boss.plates = 2;
+  boss.platesBroken = 1;
+  boss.plateHp = 20;
+  boss.burstBase = 2.4 * 0.85;
   boss.angle = 0.6;
   game.enemies.push(boss);
   // A snuff-moth closing on the guttering north-east lantern.
@@ -139,6 +148,14 @@ export function stageShot(game, name, seed = 7) {
     m.flash = 0.12;
     game.enemies.push(m);
   }
+  // Brass Depths, frozen mid-descent: a relic (BRASS WICK) dropped and
+  // waiting at (560, 300), one drift mine pulsing at (760, 560), and one
+  // relic already owned (KEEN SIGHT) so the HUD's relic row reads.
+  game.relics.spawnAt(560, 300, RELICS[0]);
+  game.relicsOwned = [RELICS[10]];
+  game.player.fireRateBonus = 1;
+  game.hazards.push({ x: 760, y: 560, r: 16, t: 1.2, dead: false });
+  game.particles.floatText(560, 268, 'RELIC!', '#ffd166', 14);
   // A second bubble still drifting in from the ship, for the alternate fire.
   game.bullets.spawnBubble(700, 430, -0.3);
   game.particles.ring(880, 380, '#aee9ff', 90);
