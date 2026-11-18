@@ -6,6 +6,7 @@ import { mulberry32, rand } from './utils.js';
 import { Enemy, Boss } from './enemies.js';
 import { Starfield } from './particles.js';
 import { RELICS } from './relics.js';
+import { realmFor } from './waves.js';
 
 export function stageShot(game, name, seed = 7) {
   const rng = mulberry32(seed);
@@ -42,8 +43,12 @@ export function stageShot(game, name, seed = 7) {
     game.player.hull = 2;
     game.gate.integrity = 92;
     // Ten nights held: every beacon lantern still burns, gate blazing —
-    // and three relics dredged up from the deep along the way.
+    // and three relics dredged up from the deep along the way. The run
+    // took the Ember Road, then the Glass Road — both forks show gold.
     game.relicsOwned = [RELICS[0], RELICS[4], RELICS[10]];
+    game.road = ['ember', 'glass'];
+    game.realm = realmFor(10);
+    game.realmGutter = game.realm.gutter;
     game.lanterns[0].flame = 100;
     game.lanterns[1].flame = 100;
     game.lanterns[2].flame = 100;
@@ -60,6 +65,8 @@ export function stageShot(game, name, seed = 7) {
     game.shotsHit = 588;
     game.runTime = 301;
     game.overReason = 'The last lantern went out on night 6.';
+    game.realm = realmFor(6);
+    game.realmGutter = game.realm.gutter;
     game.player.hull = 0;
     game.gate.integrity = 0;
     // The dark won: every beacon lantern is cold, the Great Lantern dead.
@@ -79,8 +86,15 @@ export function stageShot(game, name, seed = 7) {
   // The signature moment is now the Ember Glass chain: a trapped splitter
   // in a glass bubble with three motes inside its shatter radius, the
   // rings still expanding and CHAIN x3 on screen. This is the cover shot.
+  // Revision 5: the run is in the Brass Depths on the Ember Road — the
+  // HUD names the realm, the road reads under the relic row, and the dive
+  // chart shows the night-3 fork taken.
   game.state = 'playing';
   game.wave = 5;
+  game.realm = realmFor(5);
+  game.realmGutter = game.realm.gutter;
+  game.road = ['ember'];
+  game.player.damageBonus = 1;
   game.score = 21480;
   game.combo = 23;
   game.comboMult = 8;

@@ -3,14 +3,19 @@
 // Screenshots are judged on this file's output, so every screen is composed
 // to read at a glance even when shrunk.
 import { TAU, clamp, fmt } from './utils.js';
+import { realmFor } from './waves.js';
+import { WORKSHOP_ITEMS } from './workshop.js';
 
 const FONT = "'Segoe UI', system-ui, sans-serif";
 
 export function drawBackground(ctx, game, time) {
+  // Revision 5: the sky follows the realm — warm indigo in the Reaches,
+  // brassy dark in the Depths, cold blue in the Quench.
+  const bg = (game.realm && game.realm.bg) || ['#0a0618', '#171233', '#05030c'];
   const g = ctx.createLinearGradient(0, 0, 0, game.h);
-  g.addColorStop(0, '#0a0618');
-  g.addColorStop(0.55, '#171233');
-  g.addColorStop(1, '#05030c');
+  g.addColorStop(0, bg[0]);
+  g.addColorStop(0.55, bg[1]);
+  g.addColorStop(1, bg[2]);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, game.w, game.h);
   game.starfield.draw(ctx);
@@ -298,6 +303,20 @@ export function drawDiveChart(ctx, game, cx, y) {
     const isBoss = i === 5 || i === 10;
     const cleared = game.state === 'victory' || i < game.wave;
     const current = game.state !== 'victory' && i === game.wave;
+    // Revision 5: each node wears its realm's colour, and a taken fork
+    // (after nights 3 and 6) shows as a small gold diamond above it.
+    const rn = realmFor(i);
+    const forkTaken = (i === 3 && game.road.length >= 1) || (i === 6 && game.road.length >= 2);
+    if (forkTaken) {
+      ctx.fillStyle = '#ffd166';
+      ctx.beginPath();
+      ctx.moveTo(x, cy + 10);
+      ctx.lineTo(x + 5, cy + 15);
+      ctx.lineTo(x, cy + 20);
+      ctx.lineTo(x - 5, cy + 15);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.save();
     if (cleared) {
       ctx.fillStyle = '#ffd166';
@@ -307,7 +326,7 @@ export function drawDiveChart(ctx, game, cx, y) {
       ctx.strokeStyle = '#19e3ff';
     } else {
       ctx.fillStyle = 'rgba(255,255,255,0.14)';
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.strokeStyle = rn.color;
     }
     ctx.lineWidth = current ? 3 : 2;
     ctx.beginPath();
@@ -395,11 +414,20 @@ export function drawHUD(ctx, game) {
     });
     ctx.textAlign = 'left';
   }
-  // Night, top-center.
+  // Revision 5: the roads taken this run, under the relic row (or where
+  // the relic row would be) — the run's fork choices, always visible.
+  if (game.road.length > 0) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = `600 12px ${FONT}`;
+    const ry = game.relicsOwned.length > 0 ? 168 : 132;
+    ctx.fillText(`ROAD ${game.road.map((r) => r.toUpperCase()).join(' · ')}`, 20, ry);
+  }
+  // Night, top-center — with the realm the run is crossing.
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = `600 12px ${FONT}`;
-  ctx.fillText('NIGHT', w / 2, 26);
+  ctx.fillText(`NIGHT — ${game.realm ? game.realm.name : 'EMBER REACHES'}`, w / 2, 26);
   ctx.fillStyle = '#ffffff';
   ctx.font = `800 30px ${FONT}`;
   ctx.fillText(`${game.wave} / 10`, w / 2, 56);
@@ -559,7 +587,7 @@ export function drawTitle(ctx, game, time) {
   ctx.fillText('LUMEN DRIFT', w / 2, 218 + bob);
   ctx.fillStyle = '#ff5d8f';
   ctx.font = `700 22px ${FONT}`;
-  ctx.fillText('— LANTERNKEEPER OF THE DRIFT GATE · BRASS DEPTHS —', w / 2, 258 + bob);
+  ctx.fillText('— LANTERNKEEPER OF THE DRIFT GATE · THREE REALMS —', w / 2, 258 + bob);
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.font = `400 17px ${FONT}`;
   ctx.fillText('The Shatter swarm comes to snuff the light. Tend the three beacon lanterns,', w / 2, 300 + bob);
@@ -569,7 +597,7 @@ export function drawTitle(ctx, game, time) {
   ctx.fillStyle = '#ffffff';
   ctx.font = `600 16px ${FONT}`;
   ctx.fillText('WASD / ARROWS — fly      MOUSE — aim      HOLD CLICK — fire', w / 2, 376);
-  ctx.fillText('SPACE — dash      E — overdrive      P — pause', w / 2, 400);
+  ctx.fillText('SPACE — dash      E — overdrive      P — pause      W — workshop', w / 2, 400);
   ctx.fillText('FLY CLOSE TO A LANTERN — rekindle its flame', w / 2, 424);
   ctx.fillText('RIGHT-CLICK / SHIFT — blow an ember-glass bubble (3 charges)', w / 2, 448);
   ctx.fillText('TRAP A FOE, THEN SHOOT IT — THE SHATTER CHAINS TO ITS NEIGHBOURS', w / 2, 472);
@@ -589,6 +617,65 @@ export function drawTitle(ctx, game, time) {
   ctx.restore();
 }
 
+// Revision 5 — the permanent workshop. Banked embers from finished
+// runs buy starting boosts that carry across runs; ranks are shown as
+// pips, and an item the keeper cannot afford (or has maxed) is dimmed.
+export function drawWorkshop(ctx, game) {
+  const { w } = game;
+  ctx.save();
+  ctx.fillStyle = 'rgba(4,5,13,0.72)';
+  ctx.fillRect(0, 0, game.w, game.h);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd166';
+  ctx.font = `800 40px ${FONT}`;
+  ctx.fillText('THE WORKSHOP', w / 2, 130);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `600 19px ${FONT}`;
+  ctx.fillText('Banked embers buy starting boosts that last across runs. Press 1, 2, 3 to buy.', w / 2, 166);
+  ctx.fillStyle = '#ffd166';
+  ctx.font = `800 22px ${FONT}`;
+  ctx.fillText(`BANKED EMBERS: ${game.workshop.banked}`, w / 2, 196);
+  const cw = 250, ch = 210, gap = 30;
+  const total = cw * 3 + gap * 2;
+  const x0 = (w - total) / 2;
+  const y0 = 230;
+  WORKSHOP_ITEMS.forEach((item, i) => {
+    const x = x0 + i * (cw + gap);
+    const owned = game.workshop.ranks[item.id];
+    const maxed = owned >= item.max;
+    const afford = game.workshop.banked >= item.cost;
+    ctx.save();
+    ctx.globalAlpha = maxed || afford ? 1 : 0.45;
+    panel(ctx, x, y0, cw, ch);
+    ctx.restore();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#19e3ff';
+    ctx.font = `800 40px ${FONT}`;
+    ctx.fillText(item.icon, x + cw / 2, y0 + 66);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 19px ${FONT}`;
+    ctx.fillText(item.name, x + cw / 2, y0 + 108);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = `400 15px ${FONT}`;
+    wrapText(ctx, item.desc, x + cw / 2, y0 + 140, cw - 36, 21);
+    // Rank pips: filled gold per owned rank, hollow per rank still open.
+    for (let r = 0; r < item.max; r++) {
+      const px = x + cw / 2 - ((item.max - 1) * 18) / 2 + r * 18;
+      ctx.beginPath();
+      ctx.arc(px, y0 + ch - 42, 5, 0, TAU);
+      if (r < owned) { ctx.fillStyle = '#ffd166'; ctx.fill(); }
+      else { ctx.strokeStyle = 'rgba(255,209,102,0.5)'; ctx.lineWidth = 1.5; ctx.stroke(); }
+    }
+    ctx.fillStyle = '#ffd166';
+    ctx.font = `700 16px ${FONT}`;
+    ctx.fillText(maxed ? 'MAXED' : `${item.cost} EMBERS  [ ${i + 1} ]`, x + cw / 2, y0 + ch - 18);
+  });
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = `400 15px ${FONT}`;
+  ctx.fillText('ESC — back to title · a tenth of every finished run’s score is banked here', w / 2, y0 + ch + 46);
+  ctx.restore();
+}
+
 export function drawUpgrade(ctx, game) {
   const { w, h } = game;
   ctx.save();
@@ -597,10 +684,10 @@ export function drawUpgrade(ctx, game) {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffd166';
   ctx.font = `800 40px ${FONT}`;
-  ctx.fillText('NIGHT HELD', w / 2, 130);
+  ctx.fillText(game.roadChoices ? 'THE DESCENT FORKS' : 'NIGHT HELD', w / 2, 130);
   ctx.fillStyle = '#ffffff';
   ctx.font = `600 19px ${FONT}`;
-  ctx.fillText('Choose a keeper’s craft — click a card or press 1, 2, 3', w / 2, 166);
+  ctx.fillText(game.roadChoices ? 'Choose your road — it holds for the rest of the run. Click a card or press 1, 2, 3' : 'Choose a keeper’s craft — click a card or press 1, 2, 3', w / 2, 166);
   const cw = 250, ch = 210, gap = 30;
   const total = cw * 3 + gap * 2;
   const x0 = (w - total) / 2;

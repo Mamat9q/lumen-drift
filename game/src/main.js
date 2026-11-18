@@ -9,7 +9,8 @@ import { Player } from './player.js';
 import { Enemy, Boss, edgeSpawn } from './enemies.js';
 import { BulletPool, EmberPool } from './bullets.js';
 import { RelicPool } from './relics.js';
-import { WAVE_TABLE, TOTAL_WAVES, pickUpgrades } from './waves.js';
+import { WAVE_TABLE, TOTAL_WAVES, pickUpgrades, realmFor, pickRoads, UPGRADES, REALMS, ROADS } from './waves.js';
+import { Workshop } from './workshop.js';
 import * as render from './render.js';
 import { stageShot } from './shots.js';
 
@@ -42,6 +43,17 @@ export class Game {
     this.shatterHops = 3;
     this.lanternGutterMul = 1;
     this.emberBonus = 0;
+    // Revision 5 — three realms, the branching road, the workshop.
+    // realm/realmGutter follow the night (Quench gutters lanterns 1.5x);
+    // road holds the run's fork choices (max two: after nights 3 and 6);
+    // relicChance is the bulwark relic drop rate (0.3, raised by the
+    // Brass Road); roadChoices marks an upgrade screen showing roads.
+    this.workshop = new Workshop();
+    this.realm = realmFor(1);
+    this.realmGutter = 1.0;
+    this.road = [];
+    this.roadChoices = false;
+    this.relicChance = 0.3;
     this.gate = { x: this.w / 2, y: this.h / 2, r: 52, integrity: 100, maxIntegrity: 100 };
     // The three beacon lanterns the keeper tends. A flame gutters down on
     // its own; fly close to rekindle it. If all three go out, the dark
@@ -83,6 +95,10 @@ export class Game {
     addEventListener('resize', () => this.resize());
     // Debug / playtest handle: the state a headless driver reads.
     window.__LUMEN = this;
+    window.__LUMEN_UPGRADES = UPGRADES;
+    window.__LUMEN_REALMS = REALMS;
+    window.__LUMEN_ROADS = ROADS;
+    window.__LUMEN_REALM_FOR = realmFor;
   }
 
   resize() {
@@ -158,6 +174,15 @@ export class Game {
     this.lanternGutterMul = 1;
     this.emberBonus = 0;
     this.player.reset(this.w / 2, this.h / 2 + 170);
+    // Revision 5: a fresh run starts in the Ember Reaches with no road
+    // taken yet — then the workshop's permanent ranks apply on top of
+    // the reset base stats (a zero-rank profile plays exactly like rev-4).
+    this.realm = realmFor(1);
+    this.realmGutter = this.realm.gutter;
+    this.road = [];
+    this.roadChoices = false;
+    this.relicChance = 0.3;
+    this.workshop.applyToRun(this, this.player);
     this.enemies = [];
     this.bullets.items = [];
     this.enemyBullets.items = [];
@@ -173,6 +198,11 @@ export class Game {
 
   startWave(n) {
     this.wave = n;
+    // Revision 5: the realm follows the night — crossing into a new
+    // realm re-tints the sky and names the banner.
+    const prevRealm = this.realm;
+    this.realm = realmFor(n);
+    this.realmGutter = this.realm.gutter;
     const def = WAVE_TABLE[n - 1];
     this.spawnBag = [];
     this.hazards = [];
@@ -190,7 +220,8 @@ export class Game {
       this.banner = { text: 'WARNING', sub: def.boss === 'voidmaw' ? 'VOID MAW APPROACHES' : 'SHATTERHEART APPROACHES', t: 2.6 };
       this.audio.bossAlarm();
     } else {
-      this.banner = { text: `NIGHT ${n}`, sub: n === TOTAL_WAVES ? 'FINAL NIGHT — HOLD THE LIGHT' : 'HOSTILES INBOUND — MIND THE LANTERNS', t: 2.2 };
+      const realmNote = this.realm !== prevRealm ? `${this.realm.name} — ` : '';
+      this.banner = { text: `NIGHT ${n}`, sub: n === TOTAL_WAVES ? 'FINAL NIGHT — HOLD THE LIGHT' : `${realmNote}HOSTILES INBOUND — MIND THE LANTERNS`, t: 2.2 };
     }
     // Brass Depths: the table fights back. Drift mines seed the arena —
     // one per two nights, up to five — placed clear of the gate, the
@@ -227,7 +258,7 @@ export class Game {
     if (Math.hypot(p.x - m.x, p.y - m.y) < 46) this.damagePlayer(1);
     for (const e of this.enemies) {
       if (e.dead) continue;
-      if (Math.hypot(e.x - m.x, e.y - m.y) < 90) this.applyDamage(e, 3);
+      if (Math.hypot(e.x - m.x, e.y - m.y) < 90) this.applyDamage(e, 3 + this.player.mineBonus);
     }
     this.hazards = this.hazards.filter((h) => !h.dead);
   }
@@ -265,8 +296,9 @@ export class Game {
   // number of enemies killed by this chain. Deaths are collected by the
   // normal death pass in resolveCollisions, so scoring stays in one place.
   shatterChain(origin, hop) {
-    const SHATTER_R = this.shatterR;
-    const MAX_HOPS = this.shatterHops;
+    // Revision 5: CHAIN LENS / the Glass Road widen the blast and add hops.
+    const SHATTER_R = this.shatterR + this.player.shatterBonusR;
+    const MAX_HOPS = this.shatterHops + this.player.chainBonus;
     const SHATTER_DMG = 5;
     let kills = 0;
     const victims = [];
@@ -302,7 +334,7 @@ export class Game {
       this.particles.addShake(16);
       // A boss always drops a relic — the deep pays for the climb.
       this.relics.spawn(e.x, e.y, Math.random, this.relicsOwned);
-    } else if (e.kind === 'bulwark' && Math.random() < 0.3) {
+    } else if (e.kind === 'bulwark' && Math.random() < this.relicChance) {
       this.relics.spawn(e.x, e.y, Math.random, this.relicsOwned);
     }
     this.particles.floatText(e.x, e.y - 10, `+${e.score * this.comboMult}`, '#ffd166', 15);
@@ -320,6 +352,9 @@ export class Game {
     if (this.state === 'gameover') return;
     this.state = 'gameover';
     this.overReason = reason;
+    // Revision 5: a finished run banks a tenth of its score as workshop
+    // embers, so even a lost run leaves the keeper a little richer.
+    this.workshop.bank(this.score);
     this.audio.stopMusic();
     this.audio.gameOver();
     this.setStatus(`The light goes out. ${reason} Final score ${this.score}. Press R to keep again.`);
@@ -327,6 +362,8 @@ export class Game {
 
   victory() {
     this.state = 'victory';
+    // Revision 5: a won run banks too — the workshop grows either way.
+    this.workshop.bank(this.score);
     this.audio.stopMusic();
     this.audio.victory();
     this.setStatus(`The gate still burns! Final score ${this.score}. Press R to play again.`);
@@ -346,10 +383,23 @@ export class Game {
     this.particles.update(dt);
 
     if (this.state === 'title') {
+      if (input.wasPressed('KeyW')) {
+        this.state = 'workshop';
+        return;
+      }
       if (input.wasPressed('Enter') || input.mouseClicked) {
         this.audio.ensure();
         this.startRun();
       }
+      return;
+    }
+    // Revision 5: the workshop — buy permanent ranks with banked
+    // embers (keys 1–3), Esc/Enter back to the title.
+    if (this.state === 'workshop') {
+      if (input.wasPressed('Digit1')) this.workshop.buy('bubble');
+      if (input.wasPressed('Digit2')) this.workshop.buy('hull');
+      if (input.wasPressed('Digit3')) this.workshop.buy('damage');
+      if (input.wasPressed('Escape') || input.wasPressed('Enter')) this.state = 'title';
       return;
     }
     if (this.state === 'gameover' || this.state === 'victory') {
@@ -376,7 +426,14 @@ export class Game {
       if (input.wasPressed('Digit3')) chosen = 2;
       if (input.mouseClicked && this.hoverCard >= 0) chosen = this.hoverCard;
       if (chosen >= 0 && this.upgradeChoices[chosen]) {
-        this.upgradeChoices[chosen].apply(this.player);
+        if (this.roadChoices) {
+          // Revision 5: a road holds for the rest of the run.
+          this.upgradeChoices[chosen].apply(this, this.player);
+          this.road.push(this.upgradeChoices[chosen].id);
+          this.roadChoices = false;
+        } else {
+          this.upgradeChoices[chosen].apply(this.player);
+        }
         this.audio.upgrade();
         this.state = 'playing';
         this.startWave(this.wave + 1);
@@ -451,10 +508,12 @@ export class Game {
     // and the gate itself starts to fade.
     let lit = 0;
     for (const L of this.lanterns) {
-      L.flame = Math.max(0, L.flame - 1.0 * this.lanternGutterMul * dt);
+      // Revision 5: the Quench gutters lanterns 1.5x; LANTERN WICK cards
+      // rekindle faster. Relic oil still multiplies the gutter too.
+      L.flame = Math.max(0, L.flame - 1.0 * this.lanternGutterMul * this.realmGutter * dt);
       const d = Math.hypot(this.player.x - L.x, this.player.y - L.y);
       if (d < 80) {
-        L.flame = Math.min(100, L.flame + 45 * dt);
+        L.flame = Math.min(100, L.flame + (45 + this.player.rekindleBonus) * dt);
         if (Math.random() < 0.3) this.particles.trail(L.x, L.y - 14, '#ffd166', 2);
       }
       if (L.flame > 5) lit++;
@@ -500,9 +559,18 @@ export class Game {
         this.victory();
       } else {
         this.state = 'upgrade';
-        this.upgradeChoices = pickUpgrades(Math.random, this.player);
+        // Revision 5: after nights 3 and 6 the descent forks — offer
+        // the three roads instead of a normal card pick (max two forks).
+        if ((this.wave === 3 || this.wave === 6) && this.road.length < 2) {
+          this.roadChoices = true;
+          this.upgradeChoices = pickRoads();
+          this.setStatus(`Night ${this.wave} held. The descent forks — choose your road.`);
+        } else {
+          this.roadChoices = false;
+          this.upgradeChoices = pickUpgrades(Math.random, this.player);
+          this.setStatus(`Night ${this.wave} held. Choose a keeper's craft.`);
+        }
         this.audio.waveClear();
-        this.setStatus(`Night ${this.wave} held. Choose a keeper's craft.`);
       }
     }
   }
@@ -637,10 +705,11 @@ export class Game {
           p.hull = Math.min(p.maxHull, p.hull + 1);
           this.particles.floatText(p.x, p.y - 24, '+1 HULL', '#ff5d8f', 16);
         } else {
-          this.score += (25 + this.emberBonus) * this.comboMult;
-          // Ember Glass: every 6th ember restores one bubble charge.
+          this.score += (25 + this.emberBonus + this.player.emberScoreBonus) * this.comboMult;
+          // Ember Glass: every Nth ember restores one bubble charge
+          // (N = 6 by default, 4 with QUICK GLASS).
           this.emberCount++;
-          if (this.emberCount >= 6) {
+          if (this.emberCount >= this.player.emberPerCharge) {
             this.emberCount = 0;
             if (this.player.bubbleCharges < this.player.bubbleMax) {
               this.player.bubbleCharges++;
@@ -673,6 +742,8 @@ export class Game {
       if (this.paused) render.drawPaused(ctx, this);
     } else if (this.state === 'title') {
       render.drawTitle(ctx, this, this.time);
+    } else if (this.state === 'workshop') {
+      render.drawWorkshop(ctx, this);
     } else if (this.state === 'gameover') {
       render.drawHUD(ctx, this);
       render.drawGameOver(ctx, this);

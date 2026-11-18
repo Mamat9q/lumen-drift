@@ -1,11 +1,12 @@
-# LUMEN DRIFT — Lanternkeeper of the Drift Gate · Brass Depths
+# LUMEN DRIFT — Lanternkeeper of the Drift Gate · Three Realms
 
 An original lantern-keeping arcade game ("Make the best game", $1,000). You are the Lanternkeeper of the
 Drift Gate: fly your lantern-skiff through ten nights of the Shatter swarm,
 tend the three beacon lanterns, and keep the Great Lantern burning — if
 every flame goes out, the dark takes the gate. The deeper the descent, the
 harder the table fights back: bosses wear breakable brass armour, drift
-mines seed the arena, and the deep pays its debts in relics.
+mines seed the arena, and the deep pays its debts in relics. The descent
+crosses three realms, forks twice, and the workshop remembers every run.
 
 ## How to play
 
@@ -23,6 +24,7 @@ no files outside `game/`.
 | E | Overdrive when the meter is full (6s of double fire rate) |
 | 1 / 2 / 3 or click | Choose a keeper's craft between nights |
 | P | Pause — M mute — R restart on end screens |
+| W | Open the workshop on the title screen |
 
 ## The loop
 
@@ -56,9 +58,23 @@ no files outside `game/`.
 - **Score with combos.** Kills chain a combo multiplier up to x8. Enemies
   drop embers worth points (and rare hull repairs). Kills fill the Overdrive
   meter.
-- **Choose a keeper's craft.** After every held night, pick 1 of 3 cards:
-  new lamp weapons (Twin Wicks, Trine Fan, Longflame Lance), a hotter wick,
-  faster cycling, lantern plating, a swifter dash, or an ember magnet.
+- **Cross three realms.** Nights 1–3 are the warm Ember Reaches, 4–6 the
+  brassy Depths, 7–10 the cold Quench — where the dark gutters the
+  lanterns half again as fast. Each realm re-tints the sky and names the
+  night banner; the dive chart wears each night's realm colour.
+- **Take the branching road.** After nights 3 and 6 the descent forks:
+  the Ember Road (hotter wicks, more glass), the Brass Road (tougher hull,
+  richer relic drops), or the Glass Road (wider shatters, longer chains).
+  A road holds for the rest of the run and shows on the HUD and the chart.
+- **Spend embers in the workshop.** A tenth of every finished run's score
+  is banked as embers (press W on the title screen). Spend them on
+  permanent starting boosts — extra glass charges, extra hull, hotter
+  wicks — that carry across runs. A fresh profile plays exactly as before.
+- **Choose a keeper's craft.** After every held night, pick 1 of 3 cards
+  from sixteen kinds: new lamp weapons (Twin Wicks, Trine Fan, Longflame
+  Lance), a hotter wick, faster cycling, lantern plating, a swifter dash,
+  ember glass, chain lenses, quick glass, minefield sense, lantern wicks,
+  overdrive siphons, shard harvests, iron lanterns, or deep pockets.
 - **Win or lose.** Hold all ten nights and the gate still burns. Lose your
   3 hull, the gate's flame, or every beacon lantern and the light goes out.
   Both end screens show your score, kills, accuracy and time — and restart
@@ -86,9 +102,12 @@ no files outside `game/`.
   with breakable brass armour plates
 - `game/src/bullets.js` — projectile pools and ember pickups
 - `game/src/relics.js` — the twelve-relic set and the relic pickup pool
-- `game/src/waves.js` — the ten-night table and keeper's craft cards
+- `game/src/waves.js` — the ten-night table, the three realms, the
+  branching roads, and the sixteen keeper's craft cards
+- `game/src/workshop.js` — the permanent workshop: banked embers and
+  starting boosts that carry across runs (localStorage, no network)
 - `game/src/render.js` — background, Great Lantern, beacon lanterns, HUD,
-  dive chart, drift mines, and all screens
+  dive chart, drift mines, workshop screen, and all screens
 - `game/src/particles.js` — explosions, rings, floating text, starfield
 - `game/src/audio.js` — synthesized SFX and music
 - `game/src/input.js` — keyboard + mouse
@@ -102,7 +121,8 @@ no files outside `game/`.
 `1-title.jpg` title screen with all three beacon lanterns burning and the
 ten-night dive chart, `2-action.jpg` the night-5 SHATTERHEART boss fight —
 one brass plate cracked, a relic dropped, a drift mine pulsing — with a
-snuff-moth diving on a guttering lantern, `3-victory.jpg` the win screen,
+snuff-moth diving on a guttering lantern, the Brass Depths realm named in
+the HUD and the Ember Road taken, `3-victory.jpg` the win screen,
 `4-gameover.jpg` the loss screen with every lantern cold. All four are real
 renders of the game's own code in a browser (see `shots.json`).
 

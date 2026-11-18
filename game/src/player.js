@@ -39,10 +39,17 @@ export class Player {
     // by relics only (see relics.js). speedMul scales thrust speed,
     // overdriveMul scales meter gain, invulnBonus extends post-hit
     // invulnerability, comboBonus lengthens the combo window.
-    this.speedMul = 1;
-    this.overdriveMul = 1;
-    this.invulnBonus = 0;
-    this.comboBonus = 0;
+    // Revision 5: upgrade-card stats, all 0 / default and raised by
+    // cards only. chainBonus/shatterBonusR widen the Ember Glass shatter,
+    // mineBonus hardens drift-mine blasts, rekindleBonus speeds lantern
+    // rekindling, emberPerCharge sets the ember-to-bubble rate (6 by
+    // default, 4 with QUICK GLASS), emberScoreBonus adds score per ember.
+    this.chainBonus = 0;
+    this.shatterBonusR = 0;
+    this.mineBonus = 0;
+    this.rekindleBonus = 0;
+    this.emberPerCharge = 6;
+    this.emberScoreBonus = 0;
     this.thrusting = false;
   }
 
@@ -64,6 +71,9 @@ export class Player {
     this.bubbleCooldown = 0;
     this.speedMul = 1; this.overdriveMul = 1;
     this.invulnBonus = 0; this.comboBonus = 0;
+    this.chainBonus = 0; this.shatterBonusR = 0;
+    this.mineBonus = 0; this.rekindleBonus = 0;
+    this.emberPerCharge = 6; this.emberScoreBonus = 0;
   }
 
   update(dt, input, aimX, aimY, world) {
